@@ -1,0 +1,60 @@
+{
+  "feature_cols": [
+    "log_return",
+    "abs_return",
+    "realized_vol_5d",
+    "realized_vol_10d",
+    "realized_vol_20d",
+    "atr",
+    "atr_pct",
+    "volume_ratio",
+    "vix_level",
+    "vix_spy_spread"
+  ],
+  "label_col": "label",
+  "val_metrics": {
+    "logistic_regression": {
+      "accuracy": 0.42643391521197005,
+      "precision": 0.3518796992481203,
+      "recall": 0.8897338403041825,
+      "f1": 0.5043103448275862,
+      "roc_auc": 0.6793597494303631
+    },
+    "xgboost": {
+      "accuracy": 0.37531172069825436,
+      "precision": 0.33962264150943394,
+      "recall": 0.9581749049429658,
+      "f1": 0.5014925373134328,
+      "roc_auc": 0.6346635439519741
+    }
+  },
+  "test_metrics": {
+    "logistic_regression": {
+      "accuracy": 0.45792079207920794,
+      "precision": 0.43799472295514513,
+      "recall": 0.9651162790697675,
+      "f1": 0.6025408348457351,
+      "roc_auc": 0.6503608660785887
+    },
+    "xgboost": {
+      "accuracy": 0.5358910891089109,
+      "precision": 0.47304347826086957,
+      "recall": 0.7906976744186046,
+      "f1": 0.5919477693144722,
+      "roc_auc": 0.6626779270248597
+    }
+  },
+  "shap_global_importance": {
+    "atr": 0.7681000232696533,
+    "vix_spy_spread": 0.32280001044273376,
+    "realized_vol_10d": 0.24310000240802765,
+    "atr_pct": 0.19110000133514404,
+    "realized_vol_5d": 0.1881999969482422,
+    "vix_level": 0.1868000030517578,
+    "volume_ratio": 0.14419999718666077,
+    "realized_vol_20d": 0.1264999955892563,
+    "log_return": 0.12449999898672104,
+    "abs_return": 0.04320000112056732
+  },
+  "production_model": "xgboost"
+}

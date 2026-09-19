@@ -1,0 +1,260 @@
+:root {
+  --color-bg: #f7f6f2;
+  --color-ink: #16181c;
+  --color-ink-soft: #565a62;
+  --color-ink-faint: #8b8d93;
+  --color-calm: #2e5aac;
+  --color-calm-bg: #eaf0fa;
+  --color-turbulent: #c24a1f;
+  --color-turbulent-bg: #faece5;
+  --color-line: #dad7d0;
+
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --content-width: 720px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* --- Layout --- */
+
+.page {
+  min-height: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.masthead {
+  padding: 2rem 1.5rem 0;
+  max-width: var(--content-width);
+  margin: 0 auto;
+}
+
+.masthead-label {
+  font-size: 0.8125rem;
+  color: var(--color-ink-faint);
+  letter-spacing: 0.01em;
+}
+
+.content {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-line);
+  margin: 2.5rem 0;
+}
+
+.status-message {
+  color: var(--color-ink-soft);
+  padding: 2rem 0;
+}
+
+/* --- Hero --- */
+
+.hero {
+  padding-top: 1rem;
+}
+
+.hero-eyebrow {
+  font-size: 0.875rem;
+  color: var(--color-ink-faint);
+  margin-bottom: 0.5rem;
+}
+
+.hero-state {
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.1;
+  animation: rise 0.5s ease-out;
+}
+
+.hero-state.turbulent {
+  color: var(--color-turbulent);
+}
+
+.hero-state.calm {
+  color: var(--color-calm);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-meta {
+  margin-top: 0.75rem;
+  font-size: 1rem;
+  color: var(--color-ink-soft);
+}
+
+.hero-probability {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.hero-summary {
+  margin-top: 1rem;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  max-width: 34em;
+}
+
+/* --- Sections --- */
+
+.section-title {
+  font-size: 1.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.section-lede {
+  color: var(--color-ink-soft);
+  font-size: 0.9375rem;
+  max-width: 36em;
+  margin-bottom: 1.5rem;
+}
+
+/* --- Feature breakdown --- */
+
+.feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.feature-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.feature-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  font-size: 0.9375rem;
+}
+
+.feature-desc {
+  color: var(--color-ink);
+}
+
+.feature-direction {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.feature-direction.turbulent { color: var(--color-turbulent); }
+.feature-direction.calm { color: var(--color-calm); }
+
+.feature-bar-track {
+  height: 6px;
+  background: var(--color-line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.feature-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.feature-bar-fill.turbulent { background: var(--color-turbulent); }
+.feature-bar-fill.calm { background: var(--color-calm); }
+
+/* --- History chart --- */
+
+.chart-block {
+  margin-top: 0.5rem;
+}
+
+.chart-tooltip {
+  background: var(--color-ink);
+  color: var(--color-bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.chart-tooltip .turbulent { color: #f0a583; }
+.chart-tooltip .calm { color: #a9c2ec; }
+
+.ribbon-legend {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-ink-soft);
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 0.375rem;
+}
+
+.dot.calm { background: var(--color-calm); }
+.dot.turbulent { background: var(--color-turbulent); }
+
+/* --- Footer --- */
+
+.footer {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 0 1.5rem 2.5rem;
+}
+
+.footer p {
+  font-size: 0.8125rem;
+  color: var(--color-ink-faint);
+  line-height: 1.5;
+  border-top: 1px solid var(--color-line);
+  padding-top: 1.25rem;
+}
+
+/* --- Reduced motion --- */
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-state {
+    animation: none;
+  }
+}
