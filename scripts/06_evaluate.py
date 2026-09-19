@@ -1,24 +1,19 @@
 """
 06_evaluate.py
 
-Final, honest evaluation on the test split -- the one chunk of data that
-has not influenced any decision so far (not used in training, not used
-in picking between Logistic Regression and XGBoost, not eyeballed
-during feature engineering). This is the number that actually means
-something.
+Final, honest evaluation on the test split, for the pooled basket
+model -- both overall and broken down PER TICKER (a pooled model could
+look good on average while quietly underperforming on one ticker, and
+averaging that away would hide it).
 
-Also:
-- Runs SHAP on the XGBoost model for explainability: both global
-  ("which features matter most overall") and local ("why did the model
-  make THIS specific prediction for THIS specific day") explanations.
-  SHAP, not raw feature importance, is the standard for the local
-  explanation, because it decomposes a single prediction into
-  per-feature contributions that sum to that prediction -- exactly the
-  "why" a PM/analyst-facing tool needs to show.
-- Picks a "production" model (whichever has the higher test ROC-AUC)
-  and writes out the artifacts the Flask backend needs to stop
-  returning placeholder nulls: the latest prediction (with its SHAP
-  explanation) and a history series for the frontend's chart.
+Also runs SHAP on XGBoost (global + a per-ticker "latest prediction"
+explanation) and writes the artifacts the Flask backend needs: one
+prediction and one history series PER TICKER, so the frontend can offer
+a ticker selector.
+
+CRITICAL: LEAKAGE GUARD -- see 05_train_model.py's docstring. Feature
+columns come from models/metadata.json (written by 05), never
+reconstructed by hand here.
 
 Usage:
     python scripts/06_evaluate.py
@@ -69,146 +64,153 @@ def load_artifacts():
     return test, metadata, log_reg, scaler, xgb
 
 
-def evaluate_on_test(name: str, y_true, y_pred, y_proba) -> dict:
-    metrics = {
+def build_feature_matrix(df: pd.DataFrame, numeric_cols: list, ticker_dummy_cols: list):
+    numeric = df[numeric_cols]
+    dummies = pd.get_dummies(df["ticker"], prefix="ticker")
+    dummies = dummies.reindex(columns=ticker_dummy_cols, fill_value=0)
+    return pd.concat([numeric, dummies], axis=1)
+
+
+def evaluate_metrics(y_true, y_pred, y_proba) -> dict:
+    return {
         "accuracy": accuracy_score(y_true, y_pred),
         "precision": precision_score(y_true, y_pred, zero_division=0),
         "recall": recall_score(y_true, y_pred, zero_division=0),
         "f1": f1_score(y_true, y_pred, zero_division=0),
-        "roc_auc": roc_auc_score(y_true, y_proba),
+        "roc_auc": roc_auc_score(y_true, y_proba) if len(set(y_true)) > 1 else float("nan"),
     }
-    print(f"\n{name} -- TEST SET (held out, never touched until now):")
+
+
+def print_metrics(name: str, metrics: dict):
+    print(f"\n{name}:")
     for k, v in metrics.items():
         print(f"  {k:>10}: {v:.4f}")
-    print("\n  Confusion matrix (rows=actual, cols=predicted, [0,1]x[0,1]):")
-    print(f"  {confusion_matrix(y_true, y_pred)}")
-    print("\n  Full classification report:")
-    print(classification_report(y_true, y_pred, target_names=["low-vol", "high-vol"]))
-    return metrics
-
-
-def compare_val_vs_test(val_metrics: dict, test_metrics: dict, model_name: str):
-    """
-    A meaningful gap between val and test ROC-AUC is a warning sign --
-    it suggests the model (or our feature/label choices) is overfit to
-    the validation period's specific regime rather than learning
-    something that generalizes.
-    """
-    val_auc = val_metrics["roc_auc"]
-    test_auc = test_metrics["roc_auc"]
-    gap = val_auc - test_auc
-    print(f"\n{model_name}: val ROC-AUC {val_auc:.4f} -> test ROC-AUC {test_auc:.4f} "
-          f"(gap: {gap:+.4f})")
-    if abs(gap) > 0.10:
-        print(
-            "  Note: that's a fairly large val/test gap. Worth treating "
-            "test performance as the more trustworthy number, and being "
-            "cautious about reading too much into val-set tuning."
-        )
 
 
 def compute_shap_explanations(xgb_model, X_test: pd.DataFrame, feature_cols: list):
-    """Global (mean |SHAP|) and local (most recent row) explanations."""
     explainer = shap.TreeExplainer(xgb_model)
     shap_values = explainer.shap_values(X_test)
-
     global_importance = pd.Series(
         np.abs(shap_values).mean(axis=0), index=feature_cols
     ).sort_values(ascending=False)
+    return explainer, shap_values, global_importance
 
-    print("\nSHAP global feature importance (mean |SHAP value| across test set):")
-    for feat, val in global_importance.items():
-        print(f"  {feat:>18}: {val:.4f}")
 
-    latest_shap = shap_values[-1]
-    latest_top_features = sorted(
-        [
-            {"feature": feat, "shap_value": round(float(val), 4)}
-            for feat, val in zip(feature_cols, latest_shap)
-        ],
-        key=lambda x: -abs(x["shap_value"]),
-    )[:5]
-
-    return global_importance, latest_top_features
+def top_features_for_row(shap_row: np.ndarray, feature_cols: list, n: int = 5) -> list:
+    ranked = sorted(
+        zip(feature_cols, shap_row), key=lambda x: -abs(x[1])
+    )[:n]
+    return [
+        {"feature": feat, "shap_value": round(float(val), 4)}
+        for feat, val in ranked
+        if not feat.startswith("ticker_")  # ticker dummies aren't a
+        # meaningful "reason" to show a PM -- they encode WHICH ticker
+        # this is, not a market condition, so they're excluded from
+        # the plain-language explanation surfaced to the frontend.
+    ]
 
 
 def main():
     test, metadata, log_reg, scaler, xgb = load_artifacts()
+    numeric_cols = metadata["numeric_feature_cols"]
+    ticker_dummy_cols = metadata["ticker_dummy_cols"]
     feature_cols = metadata["feature_cols"]
-    X_test, y_test = test[feature_cols], test["label"]
+    basket = metadata["basket"]
 
-    # --- Logistic Regression on test ---
+    X_test = build_feature_matrix(test, numeric_cols, ticker_dummy_cols)
+    y_test = test["label"]
+
+    # --- Logistic Regression, pooled + per-ticker ---
     X_test_scaled = scaler.transform(X_test)
     lr_pred = log_reg.predict(X_test_scaled)
     lr_proba = log_reg.predict_proba(X_test_scaled)[:, 1]
-    lr_test_metrics = evaluate_on_test("Logistic Regression", y_test, lr_pred, lr_proba)
-    compare_val_vs_test(
-        metadata["val_metrics"]["logistic_regression"], lr_test_metrics,
-        "Logistic Regression",
-    )
+    lr_pooled = evaluate_metrics(y_test, lr_pred, lr_proba)
+    print_metrics("Logistic Regression -- TEST (pooled)", lr_pooled)
 
-    # --- XGBoost on test ---
+    # --- XGBoost, pooled + per-ticker ---
     xgb_pred = xgb.predict(X_test)
     xgb_proba = xgb.predict_proba(X_test)[:, 1]
-    xgb_test_metrics = evaluate_on_test("XGBoost", y_test, xgb_pred, xgb_proba)
-    compare_val_vs_test(
-        metadata["val_metrics"]["xgboost"], xgb_test_metrics, "XGBoost"
-    )
+    xgb_pooled = evaluate_metrics(y_test, xgb_pred, xgb_proba)
+    print_metrics("XGBoost -- TEST (pooled)", xgb_pooled)
 
-    # --- SHAP explainability (XGBoost) ---
-    global_importance, latest_top_features = compute_shap_explanations(
+    print("\nXGBoost -- TEST, per ticker:")
+    xgb_per_ticker = {}
+    for ticker in basket:
+        mask = (test["ticker"] == ticker).values
+        if mask.sum() == 0:
+            continue
+        m = evaluate_metrics(y_test[mask], xgb_pred[mask], xgb_proba[mask])
+        xgb_per_ticker[ticker] = m
+        print(f"  {ticker:>4}: accuracy={m['accuracy']:.3f}  "
+              f"roc_auc={m['roc_auc']:.3f}  recall={m['recall']:.3f}")
+
+    # --- SHAP (XGBoost) ---
+    explainer, shap_values, global_importance = compute_shap_explanations(
         xgb, X_test, feature_cols
     )
+    print("\nSHAP global feature importance (mean |SHAP value|, pooled):")
+    for feat, val in global_importance.items():
+        print(f"  {feat:>18}: {val:.4f}")
 
-    # --- Pick the production model by test ROC-AUC ---
     production_model_name = (
-        "xgboost" if xgb_test_metrics["roc_auc"] >= lr_test_metrics["roc_auc"]
-        else "logistic_regression"
+        "xgboost" if xgb_pooled["roc_auc"] >= lr_pooled["roc_auc"] else "logistic_regression"
     )
-    print(f"\nProduction model selected: {production_model_name} "
-          f"(higher test ROC-AUC)")
+    print(f"\nProduction model selected: {production_model_name}")
 
-    # --- Write artifacts for the Flask backend ---
+    # --- Write per-ticker artifacts for the Flask backend ---
     BACKEND_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    latest_date = test.index[-1]
-    latest_regime = "high" if xgb_pred[-1] == 1 else "low"
-    latest_prediction = {
-        "date": latest_date.strftime("%Y-%m-%d"),
-        "regime": latest_regime,
-        "probability": round(float(xgb_proba[-1]), 4),
-        "top_features": latest_top_features,
-        "model": "xgboost",
-        "note": None,
-    }
-    with open(BACKEND_DATA_DIR / "latest_prediction.json", "w") as f:
-        json.dump(latest_prediction, f, indent=2)
+    latest_predictions = {}
+    histories = {}
+    for ticker in basket:
+        # Locate this ticker's rows via a boolean mask on the
+        # already positionally-aligned X_test/xgb_pred/xgb_proba/
+        # shap_values arrays -- verified correct against test.iloc[]
+        # during development (see project notes).
+        mask = (test["ticker"] == ticker).values
+        if mask.sum() == 0:
+            continue
+        ticker_positions = np.where(mask)[0]
 
-    history = {
-        "dates": [d.strftime("%Y-%m-%d") for d in test.index],
-        "prices": [round(float(p), 2) for p in test["Close"]],
-        "regimes": ["high" if p == 1 else "low" for p in xgb_pred],
-    }
-    with open(BACKEND_DATA_DIR / "history.json", "w") as f:
-        json.dump(history, f, indent=2)
+        last_pos = ticker_positions[-1]  # most recent row for this ticker
+        last_date = test.index[last_pos]
+
+        latest_predictions[ticker] = {
+            "date": last_date.strftime("%Y-%m-%d"),
+            "regime": "high" if xgb_pred[last_pos] == 1 else "low",
+            "probability": round(float(xgb_proba[last_pos]), 4),
+            "top_features": top_features_for_row(shap_values[last_pos], feature_cols),
+            "model": "xgboost",
+            "note": None,
+        }
+
+        histories[ticker] = {
+            "dates": [d.strftime("%Y-%m-%d") for d in test.index[ticker_positions]],
+            "prices": [round(float(p), 2) for p in test["Close"].values[ticker_positions]],
+            "regimes": ["high" if xgb_pred[p] == 1 else "low" for p in ticker_positions],
+        }
+
+    with open(BACKEND_DATA_DIR / "latest_predictions.json", "w") as f:
+        json.dump(latest_predictions, f, indent=2)
+    with open(BACKEND_DATA_DIR / "histories.json", "w") as f:
+        json.dump(histories, f, indent=2)
 
     final_metadata = {
         **metadata,
-        "test_metrics": {
-            "logistic_regression": lr_test_metrics,
-            "xgboost": xgb_test_metrics,
+        "test_metrics_pooled": {
+            "logistic_regression": lr_pooled,
+            "xgboost": xgb_pooled,
         },
+        "test_metrics_by_ticker": xgb_per_ticker,
         "shap_global_importance": global_importance.round(4).to_dict(),
         "production_model": production_model_name,
     }
     with open(MODELS_DIR / "metadata.json", "w") as f:
         json.dump(final_metadata, f, indent=2)
 
-    print(f"\nSaved backend artifacts -> {BACKEND_DATA_DIR.relative_to(PROJECT_ROOT)}")
-    print("Updated models/metadata.json with test metrics + SHAP importance + "
-          "production model choice.")
-    print("\nDone. Next: wire backend/app.py to read these JSON files instead of "
-          "returning placeholder nulls.")
+    print(f"\nSaved backend artifacts (per ticker: {', '.join(basket)}) -> "
+          f"{BACKEND_DATA_DIR.relative_to(PROJECT_ROOT)}")
+    print("\nDone.")
 
 
 if __name__ == "__main__":

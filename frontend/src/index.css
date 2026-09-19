@@ -64,6 +64,35 @@ a {
   letter-spacing: 0.01em;
 }
 
+.ticker-nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.ticker-tab {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-ink-soft);
+  padding: 0.5rem 0.875rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.ticker-tab:hover {
+  color: var(--color-ink);
+}
+
+.ticker-tab.active {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-ink);
+}
+
 .content {
   max-width: var(--content-width);
   margin: 0 auto;

@@ -1,18 +1,21 @@
 """
 01_fetch_data.py
 
-Pulls raw daily OHLCV data for SPY and the VIX index from Yahoo Finance
-and saves them to data/raw/ as CSVs.
+Pulls raw daily OHLCV data for a basket of index/sector ETFs, plus the
+VIX index, from Yahoo Finance, and saves them to data/raw/ as CSVs.
 
-Why SPY + VIX together:
-- SPY gives us the price/volume series we'll engineer features from
-  (realized volatility, ATR, volume anomalies, returns).
-- VIX is the market's own forward-looking volatility estimate, and the
-  VIX-SPY relationship (level + spread) is one of the most well-documented
-  volatility regime signals in the literature. Including it as a feature
-  is standard practice, not cheating -- we're not using VIX to predict
-  itself, we're using it as one input among several to predict forward
-  realized volatility in SPY.
+Basket: SPY, QQQ, IWM, DIA, XLF -- broad index ETFs (S&P 500, Nasdaq
+100, Russell 2000, Dow 30) plus one sector fund (Financials), rather
+than individual stocks. Volatility regime is fundamentally a
+market-wide phenomenon, so staying with index/sector ETFs keeps the
+project's thesis intact instead of drifting into single-stock noise
+(earnings surprises, idiosyncratic news) that a broad regime model
+isn't meant to capture.
+
+Why VIX is pulled once, separately, rather than per-ticker:
+VIX is the market's own forward-looking volatility estimate (derived
+from S&P 500 options), and it's used as a shared market-wide feature
+for every ticker in the basket -- not something to re-fetch per ticker.
 
 Usage:
     python scripts/01_fetch_data.py
@@ -32,10 +35,8 @@ import yfinance as yf
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
-TICKERS = {
-    "SPY": "SPY",
-    "VIX": "^VIX",
-}
+BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
+VIX_SYMBOL = "^VIX"
 
 DEFAULT_START = "2005-01-01"  # far enough back to span multiple vol regimes
                                 # (dot-com aftermath, '08 GFC, '18 vol spike,
@@ -82,7 +83,10 @@ def main():
 
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    for label, symbol in TICKERS.items():
+    all_symbols = {ticker: ticker for ticker in BASKET}
+    all_symbols["VIX"] = VIX_SYMBOL
+
+    for label, symbol in all_symbols.items():
         try:
             df = fetch_ticker(symbol, args.start, args.end)
         except ValueError as e:
@@ -94,7 +98,8 @@ def main():
         print(f"  Saved {len(df):,} rows -> {out_path.relative_to(PROJECT_ROOT)}")
         print(f"  Date range: {df.index.min().date()} to {df.index.max().date()}")
 
-    print("\nDone. Next: run 02_engineer_features.py")
+    print(f"\nBasket: {', '.join(BASKET)} (+ VIX)")
+    print("Done. Next: run 02_engineer_features.py")
 
 
 if __name__ == "__main__":

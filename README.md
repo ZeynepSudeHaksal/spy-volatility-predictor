@@ -1,9 +1,11 @@
-# SPY Volatility Regime Predictor
+# Volatility Regime Predictor (SPY, QQQ, IWM, DIA, XLF)
 
-An explainable ML classifier that predicts whether SPY's realized volatility
-over the next 5 trading days will be **elevated** or **normal**, relative to
-its own recent history. Built as a risk-flagging tool for a
-portfolio-manager-facing audience, not a trading signal.
+An explainable ML classifier that predicts whether each ticker's realized
+volatility over the next 5 trading days will be **elevated** or **normal**,
+relative to that ticker's own recent history. One pooled XGBoost model
+(ticker as a one-hot feature) trained across a small basket of index/sector
+ETFs. Built as a risk-flagging tool for a portfolio-manager-facing audience,
+not a trading signal.
 
 ## Why volatility regime, not price direction
 
@@ -95,13 +97,29 @@ to see the current placeholder dashboard -- it confirms the frontend can
 reach the Flask API. It'll return empty/null data until the model
 pipeline (scripts 02-06) is built out.
 
+## Basket design
+
+- **Tickers**: SPY, QQQ, IWM, DIA, XLF -- broad index ETFs plus one sector
+  fund, not individual stocks (volatility regime is a market-wide
+  phenomenon; single stocks add earnings-driven noise this model isn't
+  meant to capture).
+- **One pooled model**, not five separate ones -- `ticker` is a one-hot
+  encoded feature, so the model shares what it learns about general
+  volatility clustering while still picking up ticker-specific effects.
+- Every rolling/forward-looking calculation (realized vol, forward-vol
+  label, trailing median, walk-forward purge) is computed **per ticker**,
+  never blended across tickers, even though they share a trading
+  calendar and (in `features.csv`/`labeled_data.csv`) the same Date index.
+- `backend/data/latest_predictions.json` and `histories.json` are
+  dictionaries keyed by ticker; the frontend has a ticker tab selector.
+
 ## Roadmap
 
-- [x] Data pull (SPY + VIX)
+- [x] Data pull (SPY, QQQ, IWM, DIA, XLF + VIX)
 - [x] Backend + frontend scaffold (Flask + React, wired together)
-- [ ] Feature engineering
-- [ ] Labeling
-- [ ] Walk-forward split
-- [ ] Model training + SHAP
-- [ ] Full dashboard design (charts, regime history, SHAP explanations)
-- [ ] Extend to a basket of tickers
+- [x] Feature engineering (per-ticker panel)
+- [x] Labeling (per-ticker forward-vol regime)
+- [x] Walk-forward split (date-cutoff based, purge gap per ticker)
+- [x] Model training + SHAP (pooled model, ticker as a feature)
+- [x] Full dashboard design (hero, SHAP breakdown, price/regime chart)
+- [x] Basket of tickers, with a ticker selector in the dashboard

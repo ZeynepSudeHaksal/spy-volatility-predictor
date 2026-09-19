@@ -28,14 +28,14 @@ function buildSummarySentence(prediction) {
     : `Recent conditions look calm, driven mainly by the absence of ${reason}.`
 }
 
-export default function RegimeHero({ prediction }) {
+export default function RegimeHero({ prediction, ticker }) {
   const isHigh = prediction.regime === 'high'
   const label = isHigh ? 'High volatility expected' : 'Low volatility expected'
   const summary = buildSummarySentence(prediction)
 
   return (
     <section className="hero">
-      <p className="hero-eyebrow">SPY, 5-day forward outlook</p>
+      <p className="hero-eyebrow">{ticker}, 5-day forward outlook</p>
       <h1 className={`hero-state ${isHigh ? 'turbulent' : 'calm'}`}>{label}</h1>
       <p className="hero-meta">
         <span className="hero-probability">

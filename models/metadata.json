@@ -1,5 +1,12 @@
 {
-  "feature_cols": [
+  "basket": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",
+    "XLF"
+  ],
+  "numeric_feature_cols": [
     "log_return",
     "abs_return",
     "realized_vol_5d",
@@ -11,50 +18,116 @@
     "vix_level",
     "vix_spy_spread"
   ],
+  "ticker_dummy_cols": [
+    "ticker_DIA",
+    "ticker_IWM",
+    "ticker_QQQ",
+    "ticker_SPY",
+    "ticker_XLF"
+  ],
+  "feature_cols": [
+    "log_return",
+    "abs_return",
+    "realized_vol_5d",
+    "realized_vol_10d",
+    "realized_vol_20d",
+    "atr",
+    "atr_pct",
+    "volume_ratio",
+    "vix_level",
+    "vix_spy_spread",
+    "ticker_DIA",
+    "ticker_IWM",
+    "ticker_QQQ",
+    "ticker_SPY",
+    "ticker_XLF"
+  ],
   "label_col": "label",
   "val_metrics": {
     "logistic_regression": {
-      "accuracy": 0.42643391521197005,
-      "precision": 0.3518796992481203,
-      "recall": 0.8897338403041825,
-      "f1": 0.5043103448275862,
-      "roc_auc": 0.6793597494303631
+      "accuracy": 0.42194513715710724,
+      "precision": 0.3707609005414648,
+      "recall": 0.9220411055988661,
+      "f1": 0.5288617886178861,
+      "roc_auc": 0.6554960761498794
     },
     "xgboost": {
-      "accuracy": 0.37531172069825436,
-      "precision": 0.33962264150943394,
-      "recall": 0.9581749049429658,
-      "f1": 0.5014925373134328,
-      "roc_auc": 0.6346635439519741
+      "accuracy": 0.4226932668329177,
+      "precision": 0.3701895462377944,
+      "recall": 0.9135364989369241,
+      "f1": 0.5268751277334969,
+      "roc_auc": 0.6378589977227789
     }
   },
-  "test_metrics": {
+  "test_metrics_pooled": {
     "logistic_regression": {
-      "accuracy": 0.45792079207920794,
-      "precision": 0.43799472295514513,
-      "recall": 0.9651162790697675,
-      "f1": 0.6025408348457351,
-      "roc_auc": 0.6503608660785887
+      "accuracy": 0.45643564356435645,
+      "precision": 0.4256584536958369,
+      "recall": 0.8994614003590664,
+      "f1": 0.5778546712802768,
+      "roc_auc": 0.5949268920645916
     },
     "xgboost": {
-      "accuracy": 0.5358910891089109,
-      "precision": 0.47304347826086957,
-      "recall": 0.7906976744186046,
-      "f1": 0.5919477693144722,
-      "roc_auc": 0.6626779270248597
+      "accuracy": 0.5321782178217822,
+      "precision": 0.4597278411180581,
+      "recall": 0.7480550568521843,
+      "f1": 0.5694760820045558,
+      "roc_auc": 0.6237941756666942
+    }
+  },
+  "test_metrics_by_ticker": {
+    "SPY": {
+      "accuracy": 0.5705445544554455,
+      "precision": 0.49707602339181284,
+      "recall": 0.7412790697674418,
+      "f1": 0.5950991831971996,
+      "roc_auc": 0.6654251453488371
+    },
+    "QQQ": {
+      "accuracy": 0.530940594059406,
+      "precision": 0.46748681898066785,
+      "recall": 0.7777777777777778,
+      "f1": 0.58397365532382,
+      "roc_auc": 0.655504103606656
+    },
+    "IWM": {
+      "accuracy": 0.4542079207920792,
+      "precision": 0.4009433962264151,
+      "recall": 0.8095238095238095,
+      "f1": 0.5362776025236593,
+      "roc_auc": 0.6024211983644033
+    },
+    "DIA": {
+      "accuracy": 0.5457920792079208,
+      "precision": 0.4834307992202729,
+      "recall": 0.7085714285714285,
+      "f1": 0.574739281575898,
+      "roc_auc": 0.6141048034934498
+    },
+    "XLF": {
+      "accuracy": 0.5594059405940595,
+      "precision": 0.46311475409836067,
+      "recall": 0.70625,
+      "f1": 0.5594059405940595,
+      "roc_auc": 0.6250032018442623
     }
   },
   "shap_global_importance": {
-    "atr": 0.7681000232696533,
-    "vix_spy_spread": 0.32280001044273376,
-    "realized_vol_10d": 0.24310000240802765,
-    "atr_pct": 0.19110000133514404,
-    "realized_vol_5d": 0.1881999969482422,
-    "vix_level": 0.1868000030517578,
-    "volume_ratio": 0.14419999718666077,
-    "realized_vol_20d": 0.1264999955892563,
-    "log_return": 0.12449999898672104,
-    "abs_return": 0.04320000112056732
+    "atr": 0.6665999889373779,
+    "atr_pct": 0.24809999763965607,
+    "vix_spy_spread": 0.23770000040531158,
+    "vix_level": 0.2037999927997589,
+    "realized_vol_5d": 0.1680999994277954,
+    "volume_ratio": 0.15559999644756317,
+    "realized_vol_10d": 0.15410000085830688,
+    "realized_vol_20d": 0.15289999544620514,
+    "log_return": 0.10599999874830246,
+    "ticker_XLF": 0.0494999997317791,
+    "ticker_SPY": 0.031199999153614044,
+    "abs_return": 0.023499999195337296,
+    "ticker_IWM": 0.011300000362098217,
+    "ticker_QQQ": 0.003700000001117587,
+    "ticker_DIA": 0.0031999999191612005
   },
   "production_model": "xgboost"
 }
