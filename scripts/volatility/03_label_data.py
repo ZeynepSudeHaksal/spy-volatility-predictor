@@ -50,8 +50,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
 
 FORWARD_WINDOW = 5
 TRAILING_MEDIAN_WINDOW = 60

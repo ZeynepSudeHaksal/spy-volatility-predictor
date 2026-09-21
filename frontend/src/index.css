@@ -7,6 +7,10 @@
   --color-calm-bg: #eaf0fa;
   --color-turbulent: #c24a1f;
   --color-turbulent-bg: #faece5;
+  --color-up: #2e7d4f;
+  --color-up-bg: #e8f3ec;
+  --color-down: #c24a1f;
+  --color-down-bg: #faece5;
   --color-line: #dad7d0;
 
   --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
@@ -286,4 +290,57 @@ a {
   .hero-state {
     animation: none;
   }
+}
+
+
+/* --- Mode toggle (top-level Volatility/Direction switch) --- */
+.mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.mode-toggle-btn {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: none;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-ink-soft);
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+
+.mode-toggle-btn:hover {
+  border-color: var(--color-ink-faint);
+  color: var(--color-ink);
+}
+
+.mode-toggle-btn.active {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-bg);
+}
+
+/* --- Up/Down variants (direction mode) --- */
+.hero-state.up { color: var(--color-up); }
+.hero-state.down { color: var(--color-down); }
+.feature-direction.up { color: var(--color-up); }
+.feature-direction.down { color: var(--color-down); }
+.feature-bar-fill.up { background: var(--color-up); }
+.feature-bar-fill.down { background: var(--color-down); }
+.chart-tooltip .up { color: #6fcf97; }
+.chart-tooltip .down { color: #f0a583; }
+.dot.up { background: var(--color-up); }
+.dot.down { background: var(--color-down); }
+
+.hero-baseline {
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--color-ink-soft);
+  max-width: 34em;
+  line-height: 1.5;
+  padding: 0.75rem 1rem;
+  border-left: 2px solid var(--color-line);
 }

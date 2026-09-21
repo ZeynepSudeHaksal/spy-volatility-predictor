@@ -1,18 +1,19 @@
 """
-app.py -- Flask API for the SPY/QQQ/IWM/DIA/XLF Volatility Regime Predictor.
+app.py -- Flask API for the Market Analytics dashboard.
 
-Serves per-ticker model predictions and history to the React frontend.
+Serves TWO prediction modes from one app, each fully independent:
 
-Data source:
-- backend/data/latest_predictions.json and backend/data/histories.json
-  are written by scripts/06_evaluate.py, each keyed by ticker (e.g.
-  {"SPY": {...}, "QQQ": {...}, ...}). This file is a thin read-and-serve
-  layer -- it does NOT run the model itself. Re-run 06_evaluate.py to
-  update what the API serves; no need to restart Flask, files are read
-  fresh on every request.
+- Volatility regime (scripts/volatility/ pipeline -> backend/data/volatility/)
+- Direction (up/down)  (scripts/direction/ pipeline -> backend/data/direction/)
+
+Both read the same basket of tickers (SPY, QQQ, IWM, DIA, XLF), fetched
+once by scripts/01_fetch_data.py, but are otherwise separate models with
+separate features, labels, and metrics -- routed under /api/volatility/
+and /api/direction/ respectively so they can evolve independently
+without colliding.
 
 Notes carried over from earlier builds:
-- Runs on port 5001, not 5000 (macOS AirPlay conflict).
+- Runs on port 5001 (macOS AirPlay Receiver squats on 5000).
 - CORS handled manually via after_request (flask-cors was unreliable).
 """
 
@@ -26,12 +27,8 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 BACKEND_DATA_DIR = Path(__file__).resolve().parent / "data"
-LATEST_PREDICTIONS_PATH = BACKEND_DATA_DIR / "latest_predictions.json"
-HISTORIES_PATH = BACKEND_DATA_DIR / "histories.json"
-
 BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
 DEFAULT_TICKER = "SPY"
-
 FRONTEND_ORIGIN = "http://localhost:5173"
 
 
@@ -50,49 +47,70 @@ def _load_json(path: Path) -> dict:
         return json.load(f)
 
 
-@app.route("/api/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok", "service": "volatility-predictor-api"})
-
-
-@app.route("/api/tickers", methods=["GET"])
-def tickers():
-    """Which tickers the frontend can offer in its selector."""
-    predictions = _load_json(LATEST_PREDICTIONS_PATH)
-    available = list(predictions.keys()) if predictions else BASKET
-    return jsonify({"tickers": available, "default": DEFAULT_TICKER})
-
-
-@app.route("/api/predict/latest", methods=["GET"])
-def predict_latest():
+def _register_mode_routes(mode: str, empty_prediction: dict, empty_history: dict):
     """
-    Returns the latest prediction for one ticker (?ticker=SPY, defaults
-    to SPY). Read from backend/data/latest_predictions.json.
+    Registers /api/<mode>/health, /api/<mode>/tickers,
+    /api/<mode>/predict/latest, and /api/<mode>/history, all reading
+    from backend/data/<mode>/. One function, called once per mode, so
+    the two modes can't drift out of sync in how they're wired up.
     """
-    ticker = request.args.get("ticker", DEFAULT_TICKER).upper()
-    predictions = _load_json(LATEST_PREDICTIONS_PATH)
+    mode_dir = BACKEND_DATA_DIR / mode
+    latest_path = mode_dir / "latest_predictions.json"
+    history_path = mode_dir / "histories.json"
 
-    if ticker in predictions:
-        return jsonify(predictions[ticker])
+    @app.route(f"/api/{mode}/health", methods=["GET"], endpoint=f"{mode}_health")
+    def health():
+        return jsonify({"status": "ok", "mode": mode})
 
-    return jsonify({
+    @app.route(f"/api/{mode}/tickers", methods=["GET"], endpoint=f"{mode}_tickers")
+    def tickers():
+        predictions = _load_json(latest_path)
+        available = list(predictions.keys()) if predictions else BASKET
+        return jsonify({"tickers": available, "default": DEFAULT_TICKER})
+
+    @app.route(f"/api/{mode}/predict/latest", methods=["GET"], endpoint=f"{mode}_predict_latest")
+    def predict_latest():
+        ticker = request.args.get("ticker", DEFAULT_TICKER).upper()
+        predictions = _load_json(latest_path)
+        if ticker in predictions:
+            return jsonify(predictions[ticker])
+        return jsonify({
+            **empty_prediction,
+            "note": f"No prediction available for {ticker} yet -- run the "
+                    f"{mode} pipeline (scripts/{mode}/02-06) to populate this.",
+        })
+
+    @app.route(f"/api/{mode}/history", methods=["GET"], endpoint=f"{mode}_history")
+    def history():
+        ticker = request.args.get("ticker", DEFAULT_TICKER).upper()
+        histories = _load_json(history_path)
+        if ticker in histories:
+            return jsonify(histories[ticker])
+        return jsonify(empty_history)
+
+
+_register_mode_routes(
+    "volatility",
+    empty_prediction={
         "date": None, "regime": None, "probability": None,
-        "top_features": [], "model": None,
-        "note": f"No prediction available for {ticker} yet -- run the "
-                f"pipeline (scripts 01-06) to populate this.",
-    })
+        "top_features": [], "model": None, "note": None,
+    },
+    empty_history={"dates": [], "prices": [], "regimes": []},
+)
+
+_register_mode_routes(
+    "direction",
+    empty_prediction={
+        "date": None, "direction": None, "probability": None,
+        "always_up_baseline": None, "top_features": [], "model": None, "note": None,
+    },
+    empty_history={"dates": [], "prices": [], "directions": []},
+)
 
 
-@app.route("/api/history", methods=["GET"])
-def history():
-    """Returns price + regime history for one ticker (?ticker=SPY)."""
-    ticker = request.args.get("ticker", DEFAULT_TICKER).upper()
-    histories = _load_json(HISTORIES_PATH)
-
-    if ticker in histories:
-        return jsonify(histories[ticker])
-
-    return jsonify({"dates": [], "prices": [], "regimes": []})
+@app.route("/api/health", methods=["GET"])
+def root_health():
+    return jsonify({"status": "ok", "service": "market-analytics-api", "modes": ["volatility", "direction"]})
 
 
 if __name__ == "__main__":

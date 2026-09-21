@@ -7,6 +7,7 @@ const CALM = '#2e5aac'
 const TURBULENT = '#c24a1f'
 
 function buildRows(history) {
+  if (!history.dates || !history.prices || !history.regimes) return []
   return history.dates.map((date, i) => ({
     date,
     price: history.prices[i],

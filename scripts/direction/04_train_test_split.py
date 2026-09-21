@@ -1,34 +1,15 @@
 """
 04_train_test_split.py
 
-Splits labeled_data.csv into train/validation/test sets -- chronologically
-by DATE CUTOFF, applied identically across every ticker in the basket,
-NOT randomly and not by row-count position per ticker.
-
-WHY DATE CUTOFFS RATHER THAN PER-TICKER ROW-COUNT SPLITS
---------------------------------------------------------------
-labeled_data.csv is a long panel (one row per ticker per date). Splitting
-by row *position* independently per ticker could let SPY's train set
-extend into 2023 while QQQ's train set only reaches 2022, if their row
-counts differ even slightly (e.g. a data gap). Using the same DATE
-cutoffs for every ticker keeps train/val/test periods perfectly aligned
-across the whole basket -- essential for a fair, honest evaluation, and
-for the "regime shift" property (a test period landing on a calmer or
-more turbulent stretch) to mean the same thing for every ticker.
-
-WHY RANDOM K-FOLD IS STILL WRONG HERE (see 03_label_data.py's docstring
-for the full explanation of return autocorrelation and label lookahead)
--- applies per ticker exactly as it did for the single-ticker version.
-
-THE PURGE GAP, NOW PER TICKER
-----------------------------------
-Same leakage risk as before: a training row's label looks FORWARD_WINDOW
-days into the future, so rows too close to a split boundary need to be
-dropped. This must be done separately for each ticker (a ticker's last
-FORWARD_WINDOW rows before the boundary, in ITS OWN date sequence -- not
-the basket's row count), using groupby('ticker').tail(), which selects
-actual rows by position within each group and is safe regardless of any
-duplicate-date index elsewhere in the frame.
+Chronological walk-forward split by date cutoff (applied identically
+across every ticker), with a per-ticker purge gap at each boundary.
+Same design and same reasoning as the volatility pipeline (scripts/volatility/)'s
+04_train_test_split.py -- see that file's docstring for the full
+explanation of why date cutoffs (not per-ticker row-count splits) and
+why the purge gap matters here too: a training row's label looks
+FORWARD_WINDOW days into the future, so rows too close to a split
+boundary must be dropped or they'd be trained on data whose label
+partly reflects the next split's period.
 
 Usage:
     python scripts/04_train_test_split.py
@@ -43,10 +24,10 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "direction"
 
-FORWARD_WINDOW = 5  # must match 03_label_data.py -- the purge gap size
+FORWARD_WINDOW = 5  # must match 03_label_data.py
 
 
 def load_labeled_data() -> pd.DataFrame:
@@ -67,9 +48,6 @@ def compute_date_cutoffs(all_dates: pd.Series, train_frac: float, val_frac: floa
 
 
 def purge_boundary(df: pd.DataFrame, purge: int) -> pd.DataFrame:
-    """Drops the chronologically-last `purge` rows of each ticker in df.
-    Uses groupby().tail(), which selects actual rows by position within
-    each group -- safe regardless of duplicate date labels elsewhere."""
     df_sorted = df.sort_values(["ticker", "Date"])
     to_drop = df_sorted.groupby("ticker", group_keys=False).tail(purge)
     return df_sorted.drop(to_drop.index)
@@ -77,13 +55,13 @@ def purge_boundary(df: pd.DataFrame, purge: int) -> pd.DataFrame:
 
 def summarize_split(name: str, split_df: pd.DataFrame) -> None:
     if len(split_df) == 0:
-        print(f"{name}: EMPTY (check your fractions / purge size)")
+        print(f"{name}: EMPTY")
         return
     print(f"{name}: {len(split_df):>5,} rows total | "
           f"{split_df['Date'].min().date()} to {split_df['Date'].max().date()}")
     for ticker, group in split_df.groupby("ticker"):
-        high_pct = (group["label"] == 1).mean() * 100
-        print(f"    {ticker:>4}: {len(group):>4,} rows | high-vol: {high_pct:5.1f}%")
+        up_pct = (group["label"] == 1).mean() * 100
+        print(f"    {ticker:>4}: {len(group):>4,} rows | up: {up_pct:5.1f}%")
 
 
 def main():
@@ -93,11 +71,10 @@ def main():
     args = parser.parse_args()
 
     if args.train_frac + args.val_frac >= 1.0:
-        print("ERROR: train-frac + val-frac must be < 1.0 (remainder is test).",
-              file=sys.stderr)
+        print("ERROR: train-frac + val-frac must be < 1.0.", file=sys.stderr)
         sys.exit(1)
 
-    df = load_labeled_data().reset_index()  # 'Date' becomes a plain column
+    df = load_labeled_data().reset_index()
 
     train_end_date, val_end_date = compute_date_cutoffs(
         df["Date"], args.train_frac, args.val_frac
@@ -122,14 +99,6 @@ def main():
 
     print(f"\nSaved train.csv, val.csv, test.csv -> "
           f"{PROCESSED_DATA_DIR.relative_to(PROJECT_ROOT)}")
-
-    print(
-        "\nNote: it's normal (and expected, not a bug) for class balance and "
-        "vol level to differ across tickers and splits -- that reflects real "
-        "differences (IWM/small-cap runs structurally hotter than DIA/blue-chip) "
-        "and real regime shifts over time, not something to 'fix' by shuffling."
-    )
-
     print("\nDone. Next: run 05_train_model.py")
 
 

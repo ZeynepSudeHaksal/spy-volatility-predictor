@@ -1,0 +1,149 @@
+{
+  "basket": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "DIA",
+    "XLF"
+  ],
+  "numeric_feature_cols": [
+    "momentum_5d",
+    "momentum_10d",
+    "momentum_20d",
+    "rsi_14",
+    "macd",
+    "macd_hist",
+    "price_vs_ma20",
+    "price_vs_ma50",
+    "volume_ratio",
+    "realized_vol_20d",
+    "vix_level",
+    "vix_spy_spread",
+    "log_return"
+  ],
+  "ticker_dummy_cols": [
+    "ticker_DIA",
+    "ticker_IWM",
+    "ticker_QQQ",
+    "ticker_SPY",
+    "ticker_XLF"
+  ],
+  "feature_cols": [
+    "momentum_5d",
+    "momentum_10d",
+    "momentum_20d",
+    "rsi_14",
+    "macd",
+    "macd_hist",
+    "price_vs_ma20",
+    "price_vs_ma50",
+    "volume_ratio",
+    "realized_vol_20d",
+    "vix_level",
+    "vix_spy_spread",
+    "log_return",
+    "ticker_DIA",
+    "ticker_IWM",
+    "ticker_QQQ",
+    "ticker_SPY",
+    "ticker_XLF"
+  ],
+  "label_col": "label",
+  "always_up_baseline_val_accuracy": 0.5771712158808933,
+  "val_metrics": {
+    "logistic_regression": {
+      "accuracy": 0.5223325062034739,
+      "precision": 0.6042641705668227,
+      "recall": 0.4995700773860705,
+      "f1": 0.5469522240527183,
+      "roc_auc": 0.5323940634347789
+    },
+    "xgboost": {
+      "accuracy": 0.5255583126550869,
+      "precision": 0.588160136286201,
+      "recall": 0.5937231298366294,
+      "f1": 0.590928540864356,
+      "roc_auc": 0.5220191527496882
+    }
+  },
+  "test_always_up_baseline": 0.5822660098522168,
+  "test_metrics_pooled": {
+    "logistic_regression": {
+      "accuracy": 0.5238916256157635,
+      "precision": 0.5977324263038549,
+      "recall": 0.5575296108291032,
+      "f1": 0.5769314948566426,
+      "roc_auc": 0.5154177341729719
+    },
+    "xgboost": {
+      "accuracy": 0.5049261083743842,
+      "precision": 0.5785270629991127,
+      "recall": 0.5516074450084603,
+      "f1": 0.5647466435686445,
+      "roc_auc": 0.49967575743064196
+    }
+  },
+  "test_metrics_by_ticker": {
+    "SPY": {
+      "accuracy": 0.5073891625615764,
+      "precision": 0.6086956521739131,
+      "recall": 0.56,
+      "f1": 0.5833333333333334,
+      "roc_auc": 0.496224358974359,
+      "always_up_baseline": 0.6157635467980296
+    },
+    "QQQ": {
+      "accuracy": 0.5135467980295566,
+      "precision": 0.5861344537815126,
+      "recall": 0.5849056603773585,
+      "f1": 0.5855194123819517,
+      "roc_auc": 0.49240589505303667,
+      "always_up_baseline": 0.5874384236453202
+    },
+    "IWM": {
+      "accuracy": 0.5147783251231527,
+      "precision": 0.5452538631346578,
+      "recall": 0.5678160919540229,
+      "f1": 0.5563063063063063,
+      "roc_auc": 0.5186133723589135,
+      "always_up_baseline": 0.5357142857142857
+    },
+    "DIA": {
+      "accuracy": 0.48645320197044334,
+      "precision": 0.561822125813449,
+      "recall": 0.5464135021097046,
+      "f1": 0.5540106951871657,
+      "roc_auc": 0.4801669038523955,
+      "always_up_baseline": 0.583743842364532
+    },
+    "XLF": {
+      "accuracy": 0.5024630541871922,
+      "precision": 0.5915841584158416,
+      "recall": 0.5,
+      "f1": 0.5419501133786848,
+      "roc_auc": 0.5062135143938066,
+      "always_up_baseline": 0.5886699507389163
+    }
+  },
+  "shap_global_importance": {
+    "vix_level": 0.09600000083446503,
+    "momentum_5d": 0.0746999979019165,
+    "momentum_20d": 0.05959999933838844,
+    "macd_hist": 0.05739999935030937,
+    "rsi_14": 0.0568000003695488,
+    "realized_vol_20d": 0.05649999901652336,
+    "vix_spy_spread": 0.03759999945759773,
+    "volume_ratio": 0.03660000115633011,
+    "macd": 0.034299999475479126,
+    "price_vs_ma50": 0.03400000184774399,
+    "momentum_10d": 0.023499999195337296,
+    "log_return": 0.023099999874830246,
+    "price_vs_ma20": 0.02160000056028366,
+    "ticker_QQQ": 0.016599999740719795,
+    "ticker_XLF": 0.014999999664723873,
+    "ticker_IWM": 0.008500000461935997,
+    "ticker_SPY": 0.003599999938160181,
+    "ticker_DIA": 0.0003000000142492354
+  },
+  "production_model": "logistic_regression"
+}

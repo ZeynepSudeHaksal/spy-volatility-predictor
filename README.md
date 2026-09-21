@@ -1,125 +1,104 @@
-# Volatility Regime Predictor (SPY, QQQ, IWM, DIA, XLF)
+# Market Analytics (Volatility Regime + Direction Prediction)
 
-An explainable ML classifier that predicts whether each ticker's realized
-volatility over the next 5 trading days will be **elevated** or **normal**,
-relative to that ticker's own recent history. One pooled XGBoost model
-(ticker as a one-hot feature) trained across a small basket of index/sector
-ETFs. Built as a risk-flagging tool for a portfolio-manager-facing audience,
-not a trading signal.
+Two ML prediction modes for a basket of index/sector ETFs (SPY, QQQ, IWM,
+DIA, XLF), sharing one data pipeline foundation, one Flask backend, and
+one React dashboard with a top-level mode toggle:
 
-## Why volatility regime, not price direction
+- **Volatility regime**: will 5-day forward realized volatility be
+  elevated or normal, relative to each ticker's own recent history?
+  A risk-flagging tool for portfolio triage.
+- **Direction**: will price be up or down 5 trading days out? A
+  deliberately harder, more honestly-framed problem -- see below.
 
-Next-day/next-week price *direction* is close to a coin flip for a liquid
-index like SPY (efficient market hypothesis holds up reasonably well at
-that horizon). Volatility, on the other hand, is well documented to
-**cluster** -- calm periods tend to stay calm, turbulent periods tend to
-stay turbulent -- which makes it a more tractable and more honest target
-for a beginner-to-intermediate ML project.
+Both are pooled models (one XGBoost model per mode, `ticker` as a
+one-hot feature, trained across the whole basket), explained with SHAP,
+evaluated on a chronologically held-out test period with a per-ticker
+purge gap to prevent label lookahead leakage.
 
-## Target definition
+## Why two separate pipelines, one shared foundation
 
-Classify whether **forward 5-day realized volatility** will exceed its own
-**trailing 60-day median** (binary: high-vol regime vs. low-vol regime).
-Using a rolling, relative threshold (rather than a fixed cutoff like
-"vol > 20%") keeps the label meaningful across a multi-year dataset
-spanning very different volatility environments.
+The raw data pull (`scripts/01_fetch_data.py`) is identical either way
+-- same basket, same VIX -- so it's shared at the top level. Everything
+downstream diverges: different features, different labels, different
+models, different evaluation criteria, because volatility clustering
+and price direction are fundamentally different prediction problems
+with different signal structure. Keeping them as separate pipelines
+under `scripts/volatility/` and `scripts/direction/` avoids forcing a
+false symmetry between two things that aren't actually alike.
 
-## Pipeline
+## Why direction is the harder problem
 
-| Script | Purpose |
-|---|---|
-| `01_fetch_data.py` | Pull raw SPY OHLCV + VIX data via yfinance |
-| `02_engineer_features.py` | Realized vol, ATR, volume anomalies, VIX spread, etc. |
-| `03_label_data.py` | Compute forward-vol labels |
-| `04_train_test_split.py` | Walk-forward (time-respecting) split |
-| `05_train_model.py` | Logistic Regression baseline -> XGBoost |
-| `06_evaluate.py` | Metrics + SHAP explainability |
-| `backend/app.py` | Flask API serving predictions to the frontend |
-| `frontend/` | React (Vite) dashboard |
+Volatility clusters -- recent volatility is a strong, direct predictor
+of near-future volatility. Price direction doesn't work that way:
+liquid index ETFs are close to efficiently priced at a 5-day horizon,
+and published research on this kind of task typically lands in the
+low-to-mid 50s% accuracy. The direction pipeline is built to represent
+that honestly: every evaluation step reports model accuracy against an
+**"always predict up" baseline** (reflecting real historical equity
+drift, often in the high 50s%), not against a 50% coin flip, because
+that's the bar that actually demonstrates skill.
 
 ## Project layout
 
 ```
-spy-volatility-predictor/
-├── scripts/          # 01-06 pipeline (data -> features -> labels -> model)
-├── data/{raw,processed}/
-├── notebooks/         # exploratory work
-├── backend/           # Flask API
-│   ├── app.py
-│   └── requirements.txt
-└── frontend/           # React (Vite) dashboard
-    ├── package.json
-    ├── vite.config.js
-    ├── index.html
+├── scripts/
+│   ├── 01_fetch_data.py        # SHARED: basket + VIX pull
+│   ├── volatility/              # 02-06: features, labels, split, train, eval
+│   └── direction/                # 02-06: features, labels, split, train, eval
+├── data/
+│   ├── raw/                      # shared
+│   └── processed/{volatility,direction}/
+├── models/{volatility,direction}/
+├── backend/
+│   ├── app.py                    # one Flask app, /api/volatility/* and /api/direction/*
+│   └── data/{volatility,direction}/
+└── frontend/
     └── src/
-        ├── main.jsx
-        ├── App.jsx
-        └── index.css
+        ├── App.jsx               # mode toggle -> ticker tabs -> mode-specific view
+        └── components/
+            ├── ModeToggle.jsx, TickerSelector.jsx   # shared
+            ├── volatility/        # RegimeHero, FeatureBreakdown, HistoryChart
+            └── direction/          # DirectionHero, FeatureBreakdown, HistoryChart
 ```
 
-## Setup -- ML pipeline
+## Setup
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-## Setup -- backend
-
-```bash
-cd backend
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python app.py   # runs on http://localhost:5001
-```
 
-## Setup -- frontend
+python scripts/01_fetch_data.py          # shared, run once
+
+python scripts/volatility/02_engineer_features.py
+python scripts/volatility/03_label_data.py
+python scripts/volatility/04_train_test_split.py
+python scripts/volatility/05_train_model.py
+python scripts/volatility/06_evaluate.py
+
+python scripts/direction/02_engineer_features.py
+python scripts/direction/03_label_data.py
+python scripts/direction/04_train_test_split.py
+python scripts/direction/05_train_model.py
+python scripts/direction/06_evaluate.py
+```
 
 ```bash
-cd frontend
-npm install
-npm run dev   # runs on http://localhost:5173
+cd backend && pip install -r requirements.txt && python app.py   # :5001
 ```
-
-## Usage
 
 ```bash
-python scripts/01_fetch_data.py
+cd frontend && npm install && npm run dev   # :5173
 ```
 
-Fetches SPY and VIX daily data (2005-present by default) and saves to
-`data/raw/`. Override the date range with `--start` / `--end`.
-
-With the backend and frontend both running, open `http://localhost:5173`
-to see the current placeholder dashboard -- it confirms the frontend can
-reach the Flask API. It'll return empty/null data until the model
-pipeline (scripts 02-06) is built out.
-
-## Basket design
-
-- **Tickers**: SPY, QQQ, IWM, DIA, XLF -- broad index ETFs plus one sector
-  fund, not individual stocks (volatility regime is a market-wide
-  phenomenon; single stocks add earnings-driven noise this model isn't
-  meant to capture).
-- **One pooled model**, not five separate ones -- `ticker` is a one-hot
-  encoded feature, so the model shares what it learns about general
-  volatility clustering while still picking up ticker-specific effects.
-- Every rolling/forward-looking calculation (realized vol, forward-vol
-  label, trailing median, walk-forward purge) is computed **per ticker**,
-  never blended across tickers, even though they share a trading
-  calendar and (in `features.csv`/`labeled_data.csv`) the same Date index.
-- `backend/data/latest_predictions.json` and `histories.json` are
-  dictionaries keyed by ticker; the frontend has a ticker tab selector.
+Open the dashboard, use the **Volatility / Direction** toggle at the top
+to switch modes, and the ticker tabs underneath to switch tickers within
+whichever mode is active.
 
 ## Roadmap
 
-- [x] Data pull (SPY, QQQ, IWM, DIA, XLF + VIX)
-- [x] Backend + frontend scaffold (Flask + React, wired together)
-- [x] Feature engineering (per-ticker panel)
-- [x] Labeling (per-ticker forward-vol regime)
-- [x] Walk-forward split (date-cutoff based, purge gap per ticker)
-- [x] Model training + SHAP (pooled model, ticker as a feature)
-- [x] Full dashboard design (hero, SHAP breakdown, price/regime chart)
-- [x] Basket of tickers, with a ticker selector in the dashboard
+- [x] Shared data pipeline + two independent prediction pipelines
+- [x] Walk-forward split, per-ticker purge gaps, leakage guards (both modes)
+- [x] SHAP explainability (both modes)
+- [x] Consolidated dashboard: mode toggle + ticker tabs
+- [ ] Push to GitHub

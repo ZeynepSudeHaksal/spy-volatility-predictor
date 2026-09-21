@@ -4,13 +4,13 @@
 Pulls raw daily OHLCV data for a basket of index/sector ETFs, plus the
 VIX index, from Yahoo Finance, and saves them to data/raw/ as CSVs.
 
+SHARED by both prediction pipelines in this project (scripts/volatility/
+and scripts/direction/) -- the raw data pull is identical either way, so
+it lives once at the top level rather than being duplicated per pipeline.
+
 Basket: SPY, QQQ, IWM, DIA, XLF -- broad index ETFs (S&P 500, Nasdaq
 100, Russell 2000, Dow 30) plus one sector fund (Financials), rather
-than individual stocks. Volatility regime is fundamentally a
-market-wide phenomenon, so staying with index/sector ETFs keeps the
-project's thesis intact instead of drifting into single-stock noise
-(earnings surprises, idiosyncratic news) that a broad regime model
-isn't meant to capture.
+than individual stocks.
 
 Why VIX is pulled once, separately, rather than per-ticker:
 VIX is the market's own forward-looking volatility estimate (derived

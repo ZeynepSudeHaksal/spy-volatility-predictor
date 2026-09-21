@@ -34,10 +34,10 @@ from sklearn.metrics import (
     precision_score, recall_score, roc_auc_score,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
-MODELS_DIR = PROJECT_ROOT / "models"
-BACKEND_DATA_DIR = PROJECT_ROOT / "backend" / "data"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
+MODELS_DIR = PROJECT_ROOT / "models" / "volatility"
+BACKEND_DATA_DIR = PROJECT_ROOT / "backend" / "data" / "volatility"
 
 
 def load_artifacts():

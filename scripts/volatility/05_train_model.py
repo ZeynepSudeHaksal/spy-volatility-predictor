@@ -61,9 +61,9 @@ from sklearn.metrics import (
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
-MODELS_DIR = PROJECT_ROOT / "models"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
+MODELS_DIR = PROJECT_ROOT / "models" / "volatility"
 
 BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
 
