@@ -13,106 +13,72 @@ ONE POOLED MODEL, NOT FIVE SEPARATE ONES
 Rather than training a separate model per ticker, this trains a single
 model on all five tickers stacked together, with 'ticker' included as
 a one-hot encoded feature. This lets the model share what it learns
-about general volatility clustering (which shows up similarly across
-SPY/QQQ/IWM/DIA/XLF) while still picking up ticker-specific effects
-(e.g. IWM running structurally hotter than DIA) through the ticker
-dummy variables. It's also a single artifact to maintain rather than
-five separately-drifting models.
+about general volatility clustering while still picking up
+ticker-specific effects through the ticker dummy variables.
 
-The ticker dummy columns are fit ONCE on train and that exact column
-set is reused (via reindex, filling any ticker missing from a given
-split with 0) for val/test and for live prediction in the Flask
-backend -- this guarantees the feature matrix always has the same
-shape and column order the model was trained on.
+HYPERPARAMETERS: TUNED IF AVAILABLE, SENSIBLE DEFAULTS OTHERWISE
+------------------------------------------------------------------------
+If scripts/volatility/05a_tune_hyperparameters.py has been run, this
+script loads its output (models/volatility/tuned_hyperparameters.json)
+and uses those hyperparameters. Otherwise it falls back to the
+hand-picked defaults below. Either way, VAL remains untouched by
+hyperparameter selection -- tuning (05a) searches only within TRAIN via
+purged walk-forward CV; val here is purely for evaluating whichever
+hyperparameters were ultimately used, exactly as before.
 
 A NOTE ON WHAT "GOOD" LOOKS LIKE HERE
 ----------------------------------------
 Judge results by ROC-AUC and recall on the high-vol class, not raw
-accuracy -- see 06_evaluate.py for the per-ticker breakdown, since a
-pooled model could plausibly do well on the tickers with more/cleaner
-signal and mask weaker performance on others if only look at the
-pooled number.
-
-CRITICAL: LEAKAGE GUARD
---------------------------
-labeled_data.csv contains forward_vol_5d and trailing_vol_median_60d --
-used to BUILD the label, never as model inputs. NUMERIC_FEATURE_COLS
-is an explicit allow-list for exactly this reason.
+accuracy -- see 06_evaluate.py for the per-ticker breakdown.
 
 Usage:
-    python scripts/05_train_model.py
+    python scripts/volatility/05_train_model.py
 """
 
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 
 import joblib
 import numpy as np
-import pandas as pd
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    accuracy_score, classification_report, f1_score,
-    precision_score, recall_score, roc_auc_score,
+    accuracy_score, f1_score, precision_score, recall_score, roc_auc_score,
 )
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
-MODELS_DIR = PROJECT_ROOT / "models" / "volatility"
+from common import (
+    BASKET, LABEL_COL, MODELS_DIR, NUMERIC_FEATURE_COLS,
+    build_feature_matrix, load_split,
+)
 
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
-
-# Explicit allow-list -- see "CRITICAL: LEAKAGE GUARD" above.
-NUMERIC_FEATURE_COLS = [
-    "log_return", "abs_return",
-    "realized_vol_5d", "realized_vol_10d", "realized_vol_20d",
-    "atr", "atr_pct",
-    "volume_ratio",
-    "vix_level", "vix_spy_spread",
-]
-LABEL_COL = "label"
+DEFAULT_XGB_PARAMS = {
+    "n_estimators": 200, "max_depth": 4, "learning_rate": 0.05,
+}
+DEFAULT_LR_PARAMS = {"C": 1.0}
 
 
-def load_split(name: str) -> pd.DataFrame:
-    path = PROCESSED_DATA_DIR / f"{name}.csv"
+def load_tuned_params():
+    """
+    Returns (xgb_params, lr_params). Falls back to the hand-picked
+    defaults above if 05a_tune_hyperparameters.py hasn't been run yet
+    -- this script always works, tuned or not.
+    """
+    path = MODELS_DIR / "tuned_hyperparameters.json"
     if not path.exists():
-        print(f"ERROR: {name}.csv not found. Run 04_train_test_split.py first.",
-              file=sys.stderr)
-        sys.exit(1)
-    df = pd.read_csv(path, index_col="Date", parse_dates=True)
+        print("No tuned_hyperparameters.json found -- using default "
+              "hyperparameters. Run 05a_tune_hyperparameters.py first "
+              "for tuned ones.")
+        return dict(DEFAULT_XGB_PARAMS), dict(DEFAULT_LR_PARAMS)
 
-    missing = [c for c in NUMERIC_FEATURE_COLS + [LABEL_COL, "ticker"] if c not in df.columns]
-    if missing:
-        print(f"ERROR: {name}.csv is missing expected columns: {missing}",
-              file=sys.stderr)
-        sys.exit(1)
-    return df
-
-
-def build_feature_matrix(df: pd.DataFrame, ticker_dummy_cols: list[str] | None):
-    """
-    Builds [numeric features] + [one-hot ticker dummies]. If
-    ticker_dummy_cols is given (from train), the dummy columns are
-    reindexed to exactly match it -- so val/test/live data always
-    produces a feature matrix with the same shape and column order the
-    model was trained on, even if a ticker is missing from that split.
-    """
-    numeric = df[NUMERIC_FEATURE_COLS]
-    dummies = pd.get_dummies(df["ticker"], prefix="ticker")
-
-    if ticker_dummy_cols is not None:
-        dummies = dummies.reindex(columns=ticker_dummy_cols, fill_value=0)
-        dummy_cols_out = ticker_dummy_cols
-    else:
-        dummy_cols_out = list(dummies.columns)
-
-    X = pd.concat([numeric, dummies], axis=1)
-    return X, dummy_cols_out
+    with open(path) as f:
+        tuned = json.load(f)
+    print(f"Loaded tuned hyperparameters from {path.name} "
+          f"(CV ROC-AUC: xgb={tuned['xgboost']['cv_roc_auc']:.4f}, "
+          f"lr={tuned['logistic_regression']['cv_roc_auc']:.4f})")
+    return tuned["xgboost"]["params"], tuned["logistic_regression"]["params"]
 
 
 def evaluate(name: str, y_true, y_pred, y_proba) -> dict:
@@ -141,9 +107,9 @@ def main():
     all_feature_cols = NUMERIC_FEATURE_COLS + ticker_dummy_cols
 
     print(f"Train: {len(X_train):,} rows | Val: {len(X_val):,} rows")
-    print(f"Feature columns ({len(all_feature_cols)}): "
-          f"{NUMERIC_FEATURE_COLS} + {ticker_dummy_cols}")
     print(f"Train class balance -- high-vol: {y_train.mean() * 100:.1f}%")
+
+    xgb_params, lr_params = load_tuned_params()
 
     # --- Naive baseline ---
     dummy = DummyClassifier(strategy="most_frequent")
@@ -157,7 +123,7 @@ def main():
     X_train_scaled = scaler.fit_transform(X_train)
     X_val_scaled = scaler.transform(X_val)
 
-    log_reg = LogisticRegression(class_weight="balanced", max_iter=1000)
+    log_reg = LogisticRegression(class_weight="balanced", max_iter=1000, **lr_params)
     log_reg.fit(X_train_scaled, y_train)
     lr_pred = log_reg.predict(X_val_scaled)
     lr_proba = log_reg.predict_proba(X_val_scaled)[:, 1]
@@ -175,12 +141,10 @@ def main():
     scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
 
     xgb = XGBClassifier(
-        n_estimators=200,
-        max_depth=4,
-        learning_rate=0.05,
         scale_pos_weight=scale_pos_weight,
         eval_metric="logloss",
         random_state=42,
+        **xgb_params,
     )
     xgb.fit(X_train, y_train)
     xgb_pred = xgb.predict(X_val)
@@ -205,6 +169,8 @@ def main():
         "ticker_dummy_cols": ticker_dummy_cols,
         "feature_cols": all_feature_cols,
         "label_col": LABEL_COL,
+        "xgb_params_used": xgb_params,
+        "lr_params_used": lr_params,
         "val_metrics": {
             "logistic_regression": lr_metrics,
             "xgboost": xgb_metrics,
@@ -213,7 +179,7 @@ def main():
     with open(MODELS_DIR / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"\nSaved models + metadata -> {MODELS_DIR.relative_to(PROJECT_ROOT)}")
+    print(f"\nSaved models + metadata -> {MODELS_DIR}")
     print("\nDone. Next: run 06_evaluate.py for full test-set evaluation + SHAP.")
 
 

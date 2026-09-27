@@ -1,0 +1,21 @@
+{
+  "n_splits": 4,
+  "purge_gap": 5,
+  "xgboost": {
+    "params": {
+      "subsample": 0.85,
+      "n_estimators": 100,
+      "min_child_weight": 5,
+      "max_depth": 6,
+      "learning_rate": 0.01,
+      "colsample_bytree": 1.0
+    },
+    "cv_roc_auc": 0.5375752381458774
+  },
+  "logistic_regression": {
+    "params": {
+      "C": 0.03
+    },
+    "cv_roc_auc": 0.5539792657079832
+  }
+}

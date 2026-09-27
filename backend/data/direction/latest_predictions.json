@@ -1,152 +1,148 @@
 {
   "SPY": {
-    "date": "2026-09-14",
-    "direction": "up",
-    "probability": 0.5982,
-    "always_up_baseline": 0.6158,
+    "date": "2026-09-18",
+    "direction": "down",
+    "probability": 0.4422,
+    "always_up_baseline": 0.6003,
     "top_features": [
       {
-        "feature": "realized_vol_20d",
-        "shap_value": 0.1589
-      },
-      {
-        "feature": "momentum_5d",
-        "shap_value": 0.1354
-      },
-      {
         "feature": "vix_level",
-        "shap_value": 0.0952
-      },
-      {
-        "feature": "rsi_14",
-        "shap_value": 0.0415
-      },
-      {
-        "feature": "macd_hist",
-        "shap_value": -0.0384
-      }
-    ],
-    "model": "xgboost",
-    "note": null
-  },
-  "QQQ": {
-    "date": "2026-09-14",
-    "direction": "up",
-    "probability": 0.5005,
-    "always_up_baseline": 0.5874,
-    "top_features": [
-      {
-        "feature": "momentum_20d",
-        "shap_value": -0.1105
-      },
-      {
-        "feature": "rsi_14",
-        "shap_value": 0.0667
-      },
-      {
-        "feature": "momentum_5d",
-        "shap_value": 0.0623
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.0478
-      },
-      {
-        "feature": "volume_ratio",
-        "shap_value": -0.0392
-      }
-    ],
-    "model": "xgboost",
-    "note": null
-  },
-  "IWM": {
-    "date": "2026-09-14",
-    "direction": "up",
-    "probability": 0.5473,
-    "always_up_baseline": 0.5357,
-    "top_features": [
-      {
-        "feature": "momentum_5d",
-        "shap_value": 0.1923
-      },
-      {
-        "feature": "momentum_20d",
-        "shap_value": -0.153
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.109
-      },
-      {
-        "feature": "macd_hist",
-        "shap_value": -0.0848
+        "shap_value": -0.0947
       },
       {
         "feature": "momentum_10d",
-        "shap_value": 0.0532
-      }
-    ],
-    "model": "xgboost",
-    "note": null
-  },
-  "DIA": {
-    "date": "2026-09-14",
-    "direction": "up",
-    "probability": 0.5434,
-    "always_up_baseline": 0.5837,
-    "top_features": [
-      {
-        "feature": "momentum_5d",
-        "shap_value": 0.0961
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.0657
-      },
-      {
-        "feature": "rsi_14",
-        "shap_value": 0.0647
-      },
-      {
-        "feature": "macd_hist",
-        "shap_value": -0.058
-      },
-      {
-        "feature": "price_vs_ma50",
-        "shap_value": 0.0332
-      }
-    ],
-    "model": "xgboost",
-    "note": null
-  },
-  "XLF": {
-    "date": "2026-09-14",
-    "direction": "up",
-    "probability": 0.5309,
-    "always_up_baseline": 0.5887,
-    "top_features": [
-      {
-        "feature": "momentum_5d",
-        "shap_value": 0.108
-      },
-      {
-        "feature": "rsi_14",
-        "shap_value": 0.0807
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.0667
-      },
-      {
-        "feature": "macd_hist",
-        "shap_value": -0.0588
+        "shap_value": -0.0573
       },
       {
         "feature": "momentum_20d",
-        "shap_value": -0.0397
+        "shap_value": -0.042
+      },
+      {
+        "feature": "price_vs_ma20",
+        "shap_value": -0.0372
+      },
+      {
+        "feature": "volume_ratio",
+        "shap_value": 0.0311
       }
     ],
-    "model": "xgboost",
+    "model": "xgboost (walk-forward production model)",
+    "note": null
+  },
+  "QQQ": {
+    "date": "2026-09-18",
+    "direction": "up",
+    "probability": 0.5206,
+    "always_up_baseline": 0.6003,
+    "top_features": [
+      {
+        "feature": "vix_level",
+        "shap_value": -0.0504
+      },
+      {
+        "feature": "momentum_10d",
+        "shap_value": 0.0359
+      },
+      {
+        "feature": "price_vs_ma50",
+        "shap_value": 0.0308
+      },
+      {
+        "feature": "rsi_14",
+        "shap_value": 0.03
+      },
+      {
+        "feature": "price_vs_ma20",
+        "shap_value": 0.0229
+      }
+    ],
+    "model": "xgboost (walk-forward production model)",
+    "note": null
+  },
+  "IWM": {
+    "date": "2026-09-18",
+    "direction": "down",
+    "probability": 0.4474,
+    "always_up_baseline": 0.6003,
+    "top_features": [
+      {
+        "feature": "momentum_10d",
+        "shap_value": -0.0488
+      },
+      {
+        "feature": "macd_hist",
+        "shap_value": -0.0446
+      },
+      {
+        "feature": "vix_level",
+        "shap_value": -0.042
+      },
+      {
+        "feature": "volume_ratio",
+        "shap_value": -0.0355
+      }
+    ],
+    "model": "xgboost (walk-forward production model)",
+    "note": null
+  },
+  "DIA": {
+    "date": "2026-09-18",
+    "direction": "down",
+    "probability": 0.4464,
+    "always_up_baseline": 0.6003,
+    "top_features": [
+      {
+        "feature": "vix_level",
+        "shap_value": -0.0646
+      },
+      {
+        "feature": "macd_hist",
+        "shap_value": -0.0565
+      },
+      {
+        "feature": "momentum_10d",
+        "shap_value": -0.0559
+      },
+      {
+        "feature": "momentum_20d",
+        "shap_value": -0.0557
+      },
+      {
+        "feature": "macd",
+        "shap_value": 0.0241
+      }
+    ],
+    "model": "xgboost (walk-forward production model)",
+    "note": null
+  },
+  "XLF": {
+    "date": "2026-09-18",
+    "direction": "down",
+    "probability": 0.4564,
+    "always_up_baseline": 0.6003,
+    "top_features": [
+      {
+        "feature": "macd_hist",
+        "shap_value": -0.0753
+      },
+      {
+        "feature": "vix_level",
+        "shap_value": -0.0559
+      },
+      {
+        "feature": "momentum_20d",
+        "shap_value": -0.0475
+      },
+      {
+        "feature": "momentum_10d",
+        "shap_value": -0.046
+      },
+      {
+        "feature": "rsi_14",
+        "shap_value": 0.0349
+      }
+    ],
+    "model": "xgboost (walk-forward production model)",
     "note": null
   }
 }
