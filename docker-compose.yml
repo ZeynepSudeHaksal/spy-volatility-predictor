@@ -1,0 +1,37 @@
+# One-command local deployment of the full stack:
+#   docker compose up --build
+# Dashboard: http://localhost:8080
+# API:       http://localhost:5001/api/health
+#
+# The two containers only talk to each other through the browser (the
+# frontend is static files; the API base URL is baked in at build time),
+# so there's no shared Docker network wiring needed -- just two services.
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5001:5001"
+    environment:
+      # Must match wherever the frontend container actually gets served
+      # from, or the browser's CORS check on fetch() calls will fail.
+      - FRONTEND_ORIGIN=http://localhost:8080
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/api/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the built JS at image-build time (see frontend/Dockerfile) --
+        # the browser calls this URL directly, so it must be reachable from
+        # wherever you're opening the dashboard (http://localhost:5001 works
+        # for a local docker compose run; swap for a real domain in production).
+        VITE_API_BASE: http://localhost:5001/api
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend

@@ -15,6 +15,14 @@ CRITICAL: LEAKAGE GUARD -- see 05_train_model.py's docstring. Feature
 columns come from models/metadata.json (written by 05), never
 reconstructed by hand here.
 
+DECISION THRESHOLDS: predictions use the per-model threshold
+05_train_model.py selected on VAL (metadata["decision_threshold"]),
+not predict()'s default 0.5 -- see common.py's select_f1_threshold
+docstring for why 0.5 can make accuracy look worse than the naive
+baseline even when ROC-AUC shows real signal. TEST is never used to
+pick the threshold, only to report metrics at whatever threshold VAL
+already chose.
+
 Usage:
     python scripts/06_evaluate.py
 """
@@ -120,18 +128,35 @@ def main():
     X_test = build_feature_matrix(test, numeric_cols, ticker_dummy_cols)
     y_test = test["label"]
 
+    # Naive baseline on TEST, for an honest side-by-side with the models'
+    # accuracy below -- always predicting the majority class is a real
+    # competitor, not just a training-time sanity check.
+    naive_baseline_accuracy = max(y_test.mean(), 1 - y_test.mean())
+    print(f"\nNaive baseline (always predict majority class) -- TEST accuracy: "
+          f"{naive_baseline_accuracy:.4f}")
+
+    # Decision thresholds selected on VAL by 05_train_model.py
+    # (select_f1_threshold in common.py) -- applied here as-is, so
+    # TEST is never used to pick the threshold. Falls back to 0.5 for
+    # metadata.json files written before this existed.
+    thresholds = metadata.get(
+        "decision_threshold", {"logistic_regression": 0.5, "xgboost": 0.5}
+    )
+    lr_threshold = thresholds["logistic_regression"]
+    xgb_threshold = thresholds["xgboost"]
+
     # --- Logistic Regression, pooled + per-ticker ---
     X_test_scaled = scaler.transform(X_test)
-    lr_pred = log_reg.predict(X_test_scaled)
     lr_proba = log_reg.predict_proba(X_test_scaled)[:, 1]
+    lr_pred = (lr_proba >= lr_threshold).astype(int)
     lr_pooled = evaluate_metrics(y_test, lr_pred, lr_proba)
-    print_metrics("Logistic Regression -- TEST (pooled)", lr_pooled)
+    print_metrics(f"Logistic Regression -- TEST (pooled, threshold={lr_threshold:.2f})", lr_pooled)
 
     # --- XGBoost, pooled + per-ticker ---
-    xgb_pred = xgb.predict(X_test)
     xgb_proba = xgb.predict_proba(X_test)[:, 1]
+    xgb_pred = (xgb_proba >= xgb_threshold).astype(int)
     xgb_pooled = evaluate_metrics(y_test, xgb_pred, xgb_proba)
-    print_metrics("XGBoost -- TEST (pooled)", xgb_pooled)
+    print_metrics(f"XGBoost -- TEST (pooled, threshold={xgb_threshold:.2f})", xgb_pooled)
 
     print("\nXGBoost -- TEST, per ticker:")
     xgb_per_ticker = {}
@@ -175,10 +200,18 @@ def main():
         last_pos = ticker_positions[-1]  # most recent row for this ticker
         last_date = test.index[last_pos]
 
+        # xgb_proba is P(high-vol). "probability" here means "confidence
+        # in the predicted regime" -- when the call is "low", that's
+        # P(low) = 1 - proba, not the raw P(high-vol), or a confident
+        # "low" call would render as a low-looking probability next to
+        # a "low volatility expected" label.
+        regime = "high" if xgb_pred[last_pos] == 1 else "low"
+        confidence = xgb_proba[last_pos] if regime == "high" else 1 - xgb_proba[last_pos]
+
         latest_predictions[ticker] = {
             "date": last_date.strftime("%Y-%m-%d"),
-            "regime": "high" if xgb_pred[last_pos] == 1 else "low",
-            "probability": round(float(xgb_proba[last_pos]), 4),
+            "regime": regime,
+            "probability": round(float(confidence), 4),
             "top_features": top_features_for_row(shap_values[last_pos], feature_cols),
             "model": "xgboost",
             "note": None,
@@ -197,6 +230,7 @@ def main():
 
     final_metadata = {
         **metadata,
+        "test_naive_baseline_accuracy": naive_baseline_accuracy,
         "test_metrics_pooled": {
             "logistic_regression": lr_pooled,
             "xgboost": xgb_pooled,

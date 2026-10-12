@@ -20,6 +20,7 @@ Notes carried over from earlier builds:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -29,7 +30,11 @@ app = Flask(__name__)
 BACKEND_DATA_DIR = Path(__file__).resolve().parent / "data"
 BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
 DEFAULT_TICKER = "SPY"
-FRONTEND_ORIGIN = "http://localhost:5173"
+
+# Configurable via env var so the same image works in dev (Vite on :5173)
+# and in a container/deployment (whatever origin the frontend actually
+# gets served from), without a code change.
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
 
 
 @app.after_request
@@ -114,4 +119,10 @@ def root_health():
 
 
 if __name__ == "__main__":
-    app.run(port=5001, debug=True)
+    # host 0.0.0.0 so the Flask dev server is reachable from outside its
+    # own container; debug stays opt-in via FLASK_DEBUG so it's off by
+    # default (debug=True runs an auto-reloading dev server -- fine on a
+    # laptop, not what you want in a container).
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host="0.0.0.0", port=port, debug=debug)

@@ -20,10 +20,29 @@ leakage.
 
 ## Findings
 
-**Volatility regime**: the model reliably beats its naive baseline
-(see `models/volatility/metadata.json` for exact test-set numbers) --
-this is the project's strongest, most usable result. Treat it as the
-headline.
+**Volatility regime**: ROC-AUC 0.59-0.66 across all five tickers (see
+`models/volatility/metadata.json` for exact numbers) -- consistently,
+clearly above random, and the project's strongest signal. But raw
+accuracy (45-56% depending on ticker) actually trails the naive
+"always predict normal" baseline (~58-65%), and that's by design, not
+a bug: both models use class weighting
+(`LogisticRegression(class_weight="balanced")` / XGBoost's
+`scale_pos_weight`) to deliberately prioritize *recall* on the
+high-volatility class -- for a risk-flagging tool, missing a real
+high-vol day (a false negative) is worse than an unnecessary alert
+(a false positive), so trading some accuracy for much better recall
+(65-78% across tickers) is the right tradeoff, not a shortcoming.
+
+I tried to have it both ways -- `scripts/volatility/common.py`'s
+`select_f1_threshold()` picks a decision threshold on the validation
+set to get a better balance than the arbitrary 0.5 default. An earlier
+version optimized the threshold for raw accuracy directly, which
+"worked" (beat the baseline) by pushing the threshold so high recall
+collapsed to ~6% overall and 0% on one ticker (XLF) -- accuracy went
+up by making the model nearly useless at its actual job. F1 avoids
+that collapse, but confirms there's no threshold that gives good
+accuracy *and* good recall here: that's the real finding, and ROC-AUC
+(threshold-independent) is the fairer metric for judging this model.
 
 **Direction**: this is where the project's methodology mattered most.
 A single train/test split gave inconsistent, sometimes alarming
@@ -35,24 +54,33 @@ proper rolling walk-forward backtest (`07_walk_forward_backtest.py`,
 34 folds, ~16,500 aggregated out-of-fold predictions spanning
 2010-2027) resolved this with real statistical power:
 
-- **XGBoost**: ROC-AUC 0.506 -- indistinguishable from random guessing.
-- **Logistic Regression**: ROC-AUC 0.528 -- a small but statistically
-  genuine edge over random (the noise band at this sample size is
-  roughly +/-0.004, so this is a real finding, not luck).
+- **XGBoost**: ROC-AUC ~0.51 -- indistinguishable from random guessing.
+- **Logistic Regression**: ROC-AUC ~0.51 -- also indistinguishable
+  from random on the most recent re-run. An earlier run (less data)
+  showed LR at 0.528, which read as a small but statistically real
+  edge at the time -- re-running with several more months of data
+  pulled it back down to the noise band around 0.50. That shift is
+  itself informative: it means the original "edge" was sitting close
+  enough to the noise floor that it didn't hold up, which is exactly
+  the kind of thing a walk-forward re-run is supposed to catch before
+  you trust a borderline result.
 - **Neither model beats the "always predict up" accuracy baseline**
   (~60%). ROC-AUC and raw accuracy answer different questions: ROC-AUC
-  asks "can it rank up-days above down-days better than chance"
-  (yes, modestly, for LR); beating a 60% baseline in raw accuracy
-  needs a much bigger edge than beating a 50% coin flip does. Both
-  things are true at once.
+  asks "can it rank up-days above down-days better than chance" (no,
+  for either model now); beating a 60% baseline in raw accuracy needs
+  a much bigger edge than beating a 50% coin flip does. Both things
+  point the same direction here.
 
-**Bottom line for direction**: there is a small, real, statistically
-detected signal -- and it is not yet strong enough to be a useful
-trading or allocation signal on its own. That is the honest,
-rigorously-supported conclusion, not a failure of the pipeline. The
-walk-forward backtest exists specifically because a naive single-split
-evaluation could not have told these two possibilities (broken
-pipeline vs. genuinely small effect) apart.
+**Bottom line for direction**: no real, usable signal from either
+model at a 5-day horizon -- a legitimate negative result for a
+problem that published research also finds hard (liquid index ETFs
+are close to efficiently priced at this timescale). That's the
+honest, rigorously-supported conclusion, not a failure of the
+pipeline. The walk-forward backtest exists specifically because a
+naive single-split evaluation could not have told "broken pipeline"
+and "genuinely small/nonexistent effect" apart -- and, as the LR
+number above shows, a single walk-forward run on less data can still
+read as a real effect that more data later shows isn't there.
 
 ## Why two separate pipelines, one shared foundation
 
@@ -255,6 +283,45 @@ Open the dashboard, use the **Volatility / Direction** toggle at the top
 to switch modes, and the ticker tabs underneath to switch tickers within
 whichever mode is active.
 
+## Running it with Docker
+
+The training pipeline (`scripts/`) still runs locally with Python -- it's a
+one-time (or periodic) batch job, not something that needs a container.
+What's containerized is the two pieces that actually need to *run as a
+service*: the Flask API and the static frontend.
+
+```bash
+docker compose up --build
+```
+
+- Dashboard: http://localhost:8080
+- API health check: http://localhost:5001/api/health
+
+Two separate images, defined in `backend/Dockerfile` and
+`frontend/Dockerfile`:
+
+- **`backend/Dockerfile`** -- `app.py` only reads the pre-computed
+  `backend/data/*/*.json` files the pipeline already wrote and serves them;
+  it never imports pandas/sklearn/xgboost/shap at runtime. So the image
+  installs just `flask` + `gunicorn` (`backend/requirements.txt` is now
+  serving-only deps -- the training stack stays in the repo-root
+  `requirements.txt`), runs as a non-root user, and serves via gunicorn
+  instead of Flask's single-threaded dev server. `FRONTEND_ORIGIN` (CORS)
+  and `PORT` are both overridable env vars rather than hardcoded, so the
+  same image works locally and in a real deployment.
+- **`frontend/Dockerfile`** -- multi-stage: builds the Vite app in a
+  throwaway `node` image, ships only the static output in `nginx:alpine`.
+  `VITE_API_BASE` is a build arg (Vite bakes env vars in at build time, not
+  runtime) -- set it to wherever the API actually ends up living.
+
+To run the backend image alone, without compose:
+
+```bash
+cd backend
+docker build -t market-analytics-backend .
+docker run -p 5001:5001 -e FRONTEND_ORIGIN=http://localhost:5173 market-analytics-backend
+```
+
 ## Roadmap
 
 - [x] Shared data pipeline + two independent prediction pipelines
@@ -265,7 +332,11 @@ whichever mode is active.
 - [x] Direction: volatility-adjusted labeling, cross-pipeline feature (vol
       regime as a direction input), full rolling walk-forward backtest --
       see Findings above for the result
-- [ ] Push to GitHub
+- [x] Push to GitHub
+- [x] Containerize backend (Flask/gunicorn) + frontend (static build/nginx),
+      one-command local deploy via `docker compose up --build`
+- [ ] Deploy to a public URL
+- [ ] CI (GitHub Actions): lint/tests on push, build the Docker images
 - [ ] Optional: cross-sectional/relative features for direction, if
       revisited (see Findings -- the small real signal found there is
       the only remaining lead worth pursuing for improving accuracy)

@@ -19,7 +19,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from sklearn.metrics import accuracy_score, f1_score
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
@@ -72,3 +74,44 @@ def build_feature_matrix(df: pd.DataFrame, ticker_dummy_cols: list[str] | None):
 
     X = pd.concat([numeric, dummies], axis=1)
     return X, dummy_cols_out
+
+
+def select_f1_threshold(y_true, y_proba) -> float:
+    """
+    Picks the probability threshold (0.05-0.95, step 0.01) that
+    maximizes F1 on the high-vol class, on the given (val)
+    labels/probabilities.
+
+    WHY F1, NOT ACCURACY: predict_proba() >= 0.5 is an arbitrary
+    default, not something that's guaranteed to produce good accuracy
+    -- especially with class_weight="balanced" (LR) / scale_pos_weight
+    (XGBoost), both of which deliberately shift probabilities toward
+    predicting the minority (high-vol) class more often, which can
+    make raw accuracy at 0.5 come in BELOW the naive "always predict
+    the majority class" baseline even when the model's probabilities
+    are clearly informative (see ROC-AUC).
+
+    An earlier version of this function maximized accuracy directly --
+    don't do that. On this imbalanced a problem (roughly 40/60
+    high-vol/normal), accuracy is maximized by pushing the threshold
+    so high the model barely ever predicts high-vol at all: in testing
+    this produced a threshold where XGBoost's test recall collapsed to
+    ~6% (0% on XLF specifically -- it never predicted high-vol for that
+    ticker once), i.e. accuracy went up by making the model nearly
+    useless at the one thing a risk-flagging tool needs to do. F1
+    balances precision and recall, so it won't let accuracy's
+    "just predict the majority class more" shortcut win -- it still
+    moves the threshold up from 0.5 toward better precision, just not
+    so far that recall is gutted.
+
+    Ties are broken by preferring the threshold closest to 0.5, so we
+    don't drift into a degenerate near-constant-prediction threshold.
+    """
+    candidates = np.round(np.arange(0.05, 0.96, 0.01), 2)
+    f1s = [
+        f1_score(y_true, (y_proba >= t).astype(int), zero_division=0)
+        for t in candidates
+    ]
+    best_f1 = max(f1s)
+    best_thresholds = [t for t, f in zip(candidates, f1s) if f == best_f1]
+    return float(min(best_thresholds, key=lambda t: abs(t - 0.5)))

@@ -4,18 +4,18 @@
   "xgboost": {
     "params": {
       "subsample": 0.85,
-      "n_estimators": 100,
-      "min_child_weight": 5,
+      "n_estimators": 300,
+      "min_child_weight": 1,
       "max_depth": 6,
-      "learning_rate": 0.01,
-      "colsample_bytree": 1.0
+      "learning_rate": 0.05,
+      "colsample_bytree": 0.85
     },
-    "cv_roc_auc": 0.5375752381458774
+    "cv_roc_auc": 0.5189051439521277
   },
   "logistic_regression": {
     "params": {
-      "C": 0.03
+      "C": 0.1
     },
-    "cv_roc_auc": 0.5539792657079832
+    "cv_roc_auc": 0.5258990623004367
   }
 }

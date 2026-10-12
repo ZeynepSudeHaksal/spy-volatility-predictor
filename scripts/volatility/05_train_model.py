@@ -28,8 +28,20 @@ hyperparameters were ultimately used, exactly as before.
 
 A NOTE ON WHAT "GOOD" LOOKS LIKE HERE
 ----------------------------------------
-Judge results by ROC-AUC and recall on the high-vol class, not raw
-accuracy -- see 06_evaluate.py for the per-ticker breakdown.
+ROC-AUC is still the primary metric -- it's threshold-independent and
+measures whether the model's probabilities actually rank high-vol days
+above normal ones, which is what matters for a risk-flagging tool.
+
+Raw accuracy at the default 0.5 cut is misleading here: both models use
+class weighting (LogisticRegression(class_weight="balanced") / XGBoost's
+scale_pos_weight) to deliberately favor recall on the minority high-vol
+class, which pushes predicted probabilities up and can make accuracy
+come in BELOW the naive "always predict the majority class" baseline --
+even when ROC-AUC clearly shows real signal. select_f1_threshold()
+(common.py) picks a better cut on VAL and 06_evaluate.py applies it to
+TEST, so the accuracy numbers reported are an honest, apples-to-apples
+comparison against that baseline rather than an artifact of the 0.5
+default. See 06_evaluate.py for the per-ticker breakdown.
 
 Usage:
     python scripts/volatility/05_train_model.py
@@ -51,7 +63,7 @@ from xgboost import XGBClassifier
 
 from common import (
     BASKET, LABEL_COL, MODELS_DIR, NUMERIC_FEATURE_COLS,
-    build_feature_matrix, load_split,
+    build_feature_matrix, load_split, select_f1_threshold,
 )
 
 DEFAULT_XGB_PARAMS = {
@@ -115,8 +127,9 @@ def main():
     dummy = DummyClassifier(strategy="most_frequent")
     dummy.fit(X_train, y_train)
     dummy_pred = dummy.predict(X_val)
+    naive_baseline_accuracy = accuracy_score(y_val, dummy_pred)
     print(f"\nNaive baseline (always predict majority class):")
-    print(f"  accuracy: {accuracy_score(y_val, dummy_pred):.4f}")
+    print(f"  accuracy: {naive_baseline_accuracy:.4f}")
 
     # --- Logistic Regression (scaled, class-weighted) ---
     scaler = StandardScaler()
@@ -125,9 +138,19 @@ def main():
 
     log_reg = LogisticRegression(class_weight="balanced", max_iter=1000, **lr_params)
     log_reg.fit(X_train_scaled, y_train)
-    lr_pred = log_reg.predict(X_val_scaled)
     lr_proba = log_reg.predict_proba(X_val_scaled)[:, 1]
+
+    # class_weight="balanced" shifts LR's probabilities toward the
+    # minority (high-vol) class, which is good for recall but can tank
+    # accuracy at the default 0.5 cut -- see select_f1_threshold's
+    # docstring. Pick the threshold that actually maximizes accuracy on
+    # VAL (never touches test), and use it everywhere downstream,
+    # including 06_evaluate.py.
+    lr_threshold = select_f1_threshold(y_val, lr_proba)
+    lr_pred = (lr_proba >= lr_threshold).astype(int)
     lr_metrics = evaluate("Logistic Regression (val, pooled)", y_val, lr_pred, lr_proba)
+    print(f"  (decision threshold selected on val: {lr_threshold:.2f}, "
+          f"vs. default 0.5)")
 
     print("\n  Coefficients (standardized -- larger magnitude = stronger effect):")
     for feat, coef in sorted(
@@ -147,9 +170,13 @@ def main():
         **xgb_params,
     )
     xgb.fit(X_train, y_train)
-    xgb_pred = xgb.predict(X_val)
     xgb_proba = xgb.predict_proba(X_val)[:, 1]
+
+    xgb_threshold = select_f1_threshold(y_val, xgb_proba)
+    xgb_pred = (xgb_proba >= xgb_threshold).astype(int)
     xgb_metrics = evaluate("XGBoost (val, pooled)", y_val, xgb_pred, xgb_proba)
+    print(f"  (decision threshold selected on val: {xgb_threshold:.2f}, "
+          f"vs. default 0.5)")
 
     print("\n  Feature importances:")
     for feat, imp in sorted(
@@ -174,6 +201,14 @@ def main():
         "val_metrics": {
             "logistic_regression": lr_metrics,
             "xgboost": xgb_metrics,
+        },
+        "val_naive_baseline_accuracy": naive_baseline_accuracy,
+        # Selected on VAL only (see select_f1_threshold in common.py);
+        # 06_evaluate.py reads these and applies them as-is to TEST, so
+        # test stays untouched by the selection itself.
+        "decision_threshold": {
+            "logistic_regression": lr_threshold,
+            "xgboost": xgb_threshold,
         },
     }
     with open(MODELS_DIR / "metadata.json", "w") as f:

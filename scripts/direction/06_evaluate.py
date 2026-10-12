@@ -152,10 +152,18 @@ def main():
         last_pos = positions[-1]
         last_date = test.index[last_pos]
 
+        # xgb_proba is P(up). "probability" here means "confidence in
+        # the predicted direction" -- when the call is "down", that's
+        # P(down) = 1 - proba, not the raw P(up), or a confident "down"
+        # call would render as a low-looking probability next to a
+        # "down expected" label.
+        direction = "up" if xgb_pred[last_pos] == 1 else "down"
+        confidence = xgb_proba[last_pos] if direction == "up" else 1 - xgb_proba[last_pos]
+
         latest_predictions[ticker] = {
             "date": last_date.strftime("%Y-%m-%d"),
-            "direction": "up" if xgb_pred[last_pos] == 1 else "down",
-            "probability": round(float(xgb_proba[last_pos]), 4),
+            "direction": direction,
+            "probability": round(float(confidence), 4),
             "always_up_baseline": round(float(y_test[mask].mean()), 4),
             "top_features": top_features_for_row(shap_values[last_pos], feature_cols),
             "model": "xgboost",

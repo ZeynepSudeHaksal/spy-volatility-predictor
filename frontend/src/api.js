@@ -1,4 +1,6 @@
-const API_BASE = 'http://localhost:5001/api'
+// Vite exposes any VITE_-prefixed env var at build time via import.meta.env.
+// Falls back to localhost so `npm run dev` with no .env still works unchanged.
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5001/api'
 
 export async function fetchTickers(mode) {
   const res = await fetch(`${API_BASE}/${mode}/tickers`)

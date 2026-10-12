@@ -1,5 +1,11 @@
+# Serving-only dependencies for backend/app.py.
+#
+# app.py itself only reads pre-computed JSON (backend/data/*/*.json) and
+# serves it over Flask -- it never imports pandas/sklearn/xgboost/shap at
+# runtime, those are training-time dependencies for the scripts/ pipeline
+# (see the repo-root requirements.txt instead). Keeping this file to just
+# what the API process actually needs keeps the Docker image small and the
+# build fast, instead of shipping a multi-hundred-MB image with an ML stack
+# the running server never touches.
 flask>=3.0.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
-xgboost>=2.0.0
-shap>=0.44.0
+gunicorn>=22.0.0

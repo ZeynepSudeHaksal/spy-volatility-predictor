@@ -304,10 +304,19 @@ def main():
         top_features = sorted(
             zip(numeric_cols + prod_ticker_cols, shap_values), key=lambda x: -abs(x[1])
         )[:5]
+        # proba is P(up) from the model. "probability" here means
+        # "confidence in the predicted direction" -- when the call is
+        # "down", that's P(down) = 1 - proba, not the raw P(up). Without
+        # this flip, a confident "down" call (e.g. P(up)=0.18) rendered
+        # on the dashboard as "Down expected, 18% probability", which
+        # reads as 18% confidence in a call the model is actually 82%
+        # confident in.
+        direction = "up" if proba > 0.5 else "down"
+        confidence = proba if direction == "up" else 1 - proba
         latest_predictions[ticker] = {
             "date": latest_row.index[0].strftime("%Y-%m-%d"),
-            "direction": "up" if proba > 0.5 else "down",
-            "probability": round(float(proba), 4),
+            "direction": direction,
+            "probability": round(float(confidence), 4),
             "always_up_baseline": round(float(overall_always_up), 4),
             "top_features": [
                 {"feature": f, "shap_value": round(float(v), 4)}
