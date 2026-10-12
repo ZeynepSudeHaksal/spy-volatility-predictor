@@ -61,7 +61,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
 
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
+BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
 
 REALIZED_VOL_WINDOWS = [5, 10, 20]   # trading days
 ATR_WINDOW = 14                       # standard ATR lookback

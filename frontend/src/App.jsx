@@ -12,7 +12,7 @@ import DirHistoryChart from './components/direction/HistoryChart'
 const MODE_META = {
   volatility: {
     footer: `Model: XGBoost, explained with SHAP. One pooled model trained
-      across SPY, QQQ, IWM, DIA, and XLF, predicting each ticker's own
+      across SPY, QQQ, IWM, DIA, XLF, GLD, and TLT, predicting each ticker's own
       5-day forward realized volatility regime relative to its own
       recent history. Evaluated on a chronologically held-out test
       period. A risk-flagging tool, not a trading signal \u2014 for

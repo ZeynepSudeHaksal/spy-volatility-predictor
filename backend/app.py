@@ -6,8 +6,9 @@ Serves TWO prediction modes from one app, each fully independent:
 - Volatility regime (scripts/volatility/ pipeline -> backend/data/volatility/)
 - Direction (up/down)  (scripts/direction/ pipeline -> backend/data/direction/)
 
-Both read the same basket of tickers (SPY, QQQ, IWM, DIA, XLF), fetched
-once by scripts/01_fetch_data.py, but are otherwise separate models with
+Both read the same basket of tickers (SPY, QQQ, IWM, DIA, XLF, GLD,
+TLT), fetched once by scripts/01_fetch_data.py, but are otherwise
+separate models with
 separate features, labels, and metrics -- routed under /api/volatility/
 and /api/direction/ respectively so they can evolve independently
 without colliding.
@@ -28,7 +29,7 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 BACKEND_DATA_DIR = Path(__file__).resolve().parent / "data"
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
+BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
 DEFAULT_TICKER = "SPY"
 
 # Configurable via env var so the same image works in dev (Vite on :5173)

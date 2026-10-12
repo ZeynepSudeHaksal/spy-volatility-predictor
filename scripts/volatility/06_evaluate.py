@@ -15,13 +15,16 @@ CRITICAL: LEAKAGE GUARD -- see 05_train_model.py's docstring. Feature
 columns come from models/metadata.json (written by 05), never
 reconstructed by hand here.
 
-DECISION THRESHOLDS: predictions use the per-model threshold
-05_train_model.py selected on VAL (metadata["decision_threshold"]),
-not predict()'s default 0.5 -- see common.py's select_f1_threshold
-docstring for why 0.5 can make accuracy look worse than the naive
-baseline even when ROC-AUC shows real signal. TEST is never used to
-pick the threshold, only to report metrics at whatever threshold VAL
-already chose.
+DECISION THRESHOLDS: predictions use the per-model, PER-TICKER
+threshold 05_train_model.py selected on VAL (metadata["decision_threshold"]
+is {model: {ticker: threshold}}), not predict()'s default 0.5 and not
+a single threshold shared across the basket -- see common.py's
+select_f1_thresholds_per_ticker docstring for why a pooled threshold
+isn't good enough once the basket includes dissimilar asset classes
+(it silently zeroed out XLF's and TLT's recall while looking fine in
+the pooled average). TEST is never used to pick the threshold, only to
+report metrics at whatever threshold VAL already chose for that
+ticker.
 
 Usage:
     python scripts/06_evaluate.py
@@ -41,6 +44,8 @@ from sklearn.metrics import (
     accuracy_score, classification_report, confusion_matrix, f1_score,
     precision_score, recall_score, roc_auc_score,
 )
+
+from common import apply_per_ticker_thresholds
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
@@ -136,27 +141,36 @@ def main():
           f"{naive_baseline_accuracy:.4f}")
 
     # Decision thresholds selected on VAL by 05_train_model.py
-    # (select_f1_threshold in common.py) -- applied here as-is, so
-    # TEST is never used to pick the threshold. Falls back to 0.5 for
-    # metadata.json files written before this existed.
+    # (select_f1_thresholds_per_ticker in common.py) -- applied here
+    # as-is, per ticker, so TEST is never used to pick the threshold.
+    # metadata["decision_threshold"][model] is normally {ticker: float}
+    # (current schema); a bare float is also accepted so metadata.json
+    # files written before per-ticker thresholds existed don't crash
+    # this script -- it's broadcast to every ticker in that case.
     thresholds = metadata.get(
         "decision_threshold", {"logistic_regression": 0.5, "xgboost": 0.5}
     )
-    lr_threshold = thresholds["logistic_regression"]
-    xgb_threshold = thresholds["xgboost"]
+
+    def as_per_ticker(thresholds_for_model):
+        if isinstance(thresholds_for_model, dict):
+            return thresholds_for_model
+        return {ticker: thresholds_for_model for ticker in basket}
+
+    lr_thresholds = as_per_ticker(thresholds["logistic_regression"])
+    xgb_thresholds = as_per_ticker(thresholds["xgboost"])
 
     # --- Logistic Regression, pooled + per-ticker ---
     X_test_scaled = scaler.transform(X_test)
     lr_proba = log_reg.predict_proba(X_test_scaled)[:, 1]
-    lr_pred = (lr_proba >= lr_threshold).astype(int)
+    lr_pred = apply_per_ticker_thresholds(lr_proba, test["ticker"], lr_thresholds)
     lr_pooled = evaluate_metrics(y_test, lr_pred, lr_proba)
-    print_metrics(f"Logistic Regression -- TEST (pooled, threshold={lr_threshold:.2f})", lr_pooled)
+    print_metrics("Logistic Regression -- TEST (pooled, per-ticker thresholds)", lr_pooled)
 
     # --- XGBoost, pooled + per-ticker ---
     xgb_proba = xgb.predict_proba(X_test)[:, 1]
-    xgb_pred = (xgb_proba >= xgb_threshold).astype(int)
+    xgb_pred = apply_per_ticker_thresholds(xgb_proba, test["ticker"], xgb_thresholds)
     xgb_pooled = evaluate_metrics(y_test, xgb_pred, xgb_proba)
-    print_metrics(f"XGBoost -- TEST (pooled, threshold={xgb_threshold:.2f})", xgb_pooled)
+    print_metrics("XGBoost -- TEST (pooled, per-ticker thresholds)", xgb_pooled)
 
     print("\nXGBoost -- TEST, per ticker:")
     xgb_per_ticker = {}
@@ -166,8 +180,9 @@ def main():
             continue
         m = evaluate_metrics(y_test[mask], xgb_pred[mask], xgb_proba[mask])
         xgb_per_ticker[ticker] = m
-        print(f"  {ticker:>4}: accuracy={m['accuracy']:.3f}  "
-              f"roc_auc={m['roc_auc']:.3f}  recall={m['recall']:.3f}")
+        print(f"  {ticker:>4} (threshold={xgb_thresholds.get(ticker, 0.5):.2f}): "
+              f"accuracy={m['accuracy']:.3f}  roc_auc={m['roc_auc']:.3f}  "
+              f"recall={m['recall']:.3f}")
 
     # --- SHAP (XGBoost) ---
     explainer, shap_values, global_importance = compute_shap_explanations(

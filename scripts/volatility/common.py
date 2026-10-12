@@ -21,13 +21,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
 MODELS_DIR = PROJECT_ROOT / "models" / "volatility"
 
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
+BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
 
 NUMERIC_FEATURE_COLS = [
     "log_return", "abs_return",
@@ -80,7 +80,9 @@ def select_f1_threshold(y_true, y_proba) -> float:
     """
     Picks the probability threshold (0.05-0.95, step 0.01) that
     maximizes F1 on the high-vol class, on the given (val)
-    labels/probabilities.
+    labels/probabilities -- subject to a precision guardrail (see
+    below) that rules out degenerate near-constant-prediction
+    thresholds.
 
     WHY F1, NOT ACCURACY: predict_proba() >= 0.5 is an arbitrary
     default, not something that's guaranteed to produce good accuracy
@@ -98,20 +100,139 @@ def select_f1_threshold(y_true, y_proba) -> float:
     this produced a threshold where XGBoost's test recall collapsed to
     ~6% (0% on XLF specifically -- it never predicted high-vol for that
     ticker once), i.e. accuracy went up by making the model nearly
-    useless at the one thing a risk-flagging tool needs to do. F1
-    balances precision and recall, so it won't let accuracy's
-    "just predict the majority class more" shortcut win -- it still
-    moves the threshold up from 0.5 toward better precision, just not
-    so far that recall is gutted.
+    useless at the one thing a risk-flagging tool needs to do.
 
-    Ties are broken by preferring the threshold closest to 0.5, so we
-    don't drift into a degenerate near-constant-prediction threshold.
+    THE PRECISION GUARDRAIL -- added after GLD/TLT were added to the
+    basket: plain F1-maximization has the SAME failure mode from the
+    opposite direction. When the validation set's class balance shifts
+    (adding non-equity assets changed the high-vol/normal mix), F1 can
+    be maximized by dragging the threshold low enough that the model
+    predicts "high" on almost every day (recall near 100%) -- this
+    inflates F1 even though the predictions carry almost no
+    information. Concretely, this happened: thresholds of 0.35-0.40
+    produced ~95-99% recall and accuracy well below the naive
+    baseline, across every ticker including ones that worked fine
+    before.
+
+    The fix: a threshold is only eligible if its precision beats the
+    base rate (the actual prevalence of the high-vol class in this
+    data) by a MEANINGFUL margin, not just technically. A model
+    predicting "high" nearly everywhere has precision that converges
+    to exactly the base rate -- it's doing no better than guessing
+    positive at random with the right frequency. A strict ">" isn't
+    enough of a guard on its own: in the run that motivated this fix,
+    the degenerate threshold's validation precision (0.364) came in
+    almost exactly equal to the base rate (0.363) -- close enough that
+    ordinary sampling noise could tip a bare ">" either way. PRECISION_LIFT
+    requires precision to beat the base rate by a fixed relative
+    margin (15%), which is a real "doing meaningfully better than
+    chance" bar rather than a coin flip against noise. This rules out
+    both degenerate directions (threshold too high -> recall gutted;
+    threshold too low -> precision no better than chance) while still
+    letting F1 pick the best threshold among the thresholds that are
+    actually discriminating.
+
+    If NO threshold clears the guardrail (possible on a small or
+    unusually skewed validation split), we fall back to unconstrained
+    F1 selection and print a warning -- that's a sign this
+    ticker/split needs a closer look, not something to silently paper
+    over.
+
+    Ties (within the eligible set) are broken by preferring the
+    threshold closest to 0.5.
     """
+    PRECISION_LIFT = 1.15  # precision must beat base rate by >= 15% relative
+
     candidates = np.round(np.arange(0.05, 0.96, 0.01), 2)
-    f1s = [
-        f1_score(y_true, (y_proba >= t).astype(int), zero_division=0)
-        for t in candidates
-    ]
-    best_f1 = max(f1s)
-    best_thresholds = [t for t, f in zip(candidates, f1s) if f == best_f1]
+    base_rate = float(np.mean(y_true))  # prevalence of the high-vol class
+    min_precision = base_rate * PRECISION_LIFT
+
+    scored = []
+    for t in candidates:
+        preds = (y_proba >= t).astype(int)
+        f1 = f1_score(y_true, preds, zero_division=0)
+        precision = precision_score(y_true, preds, zero_division=0)
+        scored.append((t, f1, precision))
+
+    eligible = [(t, f1) for t, f1, p in scored if p >= min_precision]
+    if not eligible:
+        print(
+            "WARNING: select_f1_threshold found no threshold with "
+            f"precision >= {PRECISION_LIFT}x the base rate ({base_rate:.3f}) "
+            "-- falling back to unconstrained F1 selection. This usually means the "
+            "validation split is small or unusually skewed; check this "
+            "ticker/run's numbers carefully rather than trusting them "
+            "blindly.",
+            file=sys.stderr,
+        )
+        eligible = [(t, f1) for t, f1, _ in scored]
+
+    best_f1 = max(f1 for _, f1 in eligible)
+    best_thresholds = [t for t, f1 in eligible if f1 == best_f1]
     return float(min(best_thresholds, key=lambda t: abs(t - 0.5)))
+
+
+MIN_ROWS_FOR_OWN_THRESHOLD = 60  # below this, borrow the pooled threshold
+                                   # rather than tune an unreliable one
+
+
+def select_f1_thresholds_per_ticker(
+    y_true, y_proba, tickers, basket: list[str]
+) -> dict[str, float]:
+    """
+    Picks a SEPARATE select_f1_threshold() cutoff for each ticker in
+    the basket, instead of one pooled threshold shared across all of
+    them.
+
+    WHY: one pooled model trained across the whole basket is fine --
+    it shares what it learns about volatility clustering while still
+    picking up ticker-specific effects through the ticker dummy
+    features. But a single pooled DECISION THRESHOLD assumes every
+    ticker's volatility dynamics are similar enough to share one
+    cutoff, and they aren't. This is exactly what broke when GLD
+    (gold) and TLT (long Treasuries) were added alongside the
+    original equity-index ETFs: a pooled threshold tuned to satisfy
+    the precision guardrail across all seven tickers at once ended up
+    far too strict for XLF and TLT specifically -- their test recall
+    collapsed to ~10% and ~2% respectively (the model almost never
+    flagged either as high-vol) even though the POOLED metrics looked
+    fine. Averaging across tickers hid a real per-ticker failure.
+    Per-ticker thresholds fix this directly: each ticker gets the cut
+    that actually works for its own volatility distribution.
+
+    A ticker with too few validation rows to tune its own threshold
+    reliably (< MIN_ROWS_FOR_OWN_THRESHOLD) borrows the pooled
+    threshold instead -- better to use a reasonable shared number than
+    overfit a cutoff to a handful of rows.
+    """
+    pooled_fallback = select_f1_threshold(y_true, y_proba)
+
+    thresholds = {}
+    ticker_mask_source = tickers.values if hasattr(tickers, "values") else tickers
+    for ticker in basket:
+        mask = ticker_mask_source == ticker
+        n = int(mask.sum())
+        if n < MIN_ROWS_FOR_OWN_THRESHOLD:
+            print(
+                f"NOTE: {ticker} has only {n} validation rows -- using the "
+                f"pooled threshold ({pooled_fallback:.2f}) rather than tuning "
+                "its own (too few rows to trust a ticker-specific cut).",
+                file=sys.stderr,
+            )
+            thresholds[ticker] = pooled_fallback
+            continue
+        thresholds[ticker] = select_f1_threshold(y_true[mask], y_proba[mask])
+    return thresholds
+
+
+def apply_per_ticker_thresholds(y_proba, tickers, thresholds: dict[str, float]) -> np.ndarray:
+    """
+    Converts probabilities to 0/1 predictions using each row's OWN
+    ticker's threshold (from select_f1_thresholds_per_ticker), rather
+    than one threshold applied uniformly to every row. Shared here so
+    05_train_model.py (val) and 06_evaluate.py (test) apply thresholds
+    identically.
+    """
+    ticker_values = tickers.values if hasattr(tickers, "values") else tickers
+    cuts = np.array([thresholds[t] for t in ticker_values])
+    return (np.asarray(y_proba) >= cuts).astype(int)

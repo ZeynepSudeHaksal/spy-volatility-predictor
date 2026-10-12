@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "direction"
 MODELS_DIR = PROJECT_ROOT / "models" / "direction"
 
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
+BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
 
 NUMERIC_FEATURE_COLS = [
     "momentum_5d", "momentum_10d", "momentum_20d",

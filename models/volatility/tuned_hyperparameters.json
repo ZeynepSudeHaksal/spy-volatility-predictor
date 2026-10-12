@@ -3,19 +3,19 @@
   "purge_gap": 5,
   "xgboost": {
     "params": {
-      "subsample": 1.0,
+      "subsample": 0.85,
       "n_estimators": 200,
-      "min_child_weight": 1,
-      "max_depth": 3,
-      "learning_rate": 0.03,
-      "colsample_bytree": 1.0
+      "min_child_weight": 5,
+      "max_depth": 5,
+      "learning_rate": 0.01,
+      "colsample_bytree": 0.7
     },
-    "cv_roc_auc": 0.6319400144300878
+    "cv_roc_auc": 0.6253801527937055
   },
   "logistic_regression": {
     "params": {
       "C": 0.01
     },
-    "cv_roc_auc": 0.647984582044731
+    "cv_roc_auc": 0.623443249892272
   }
 }

@@ -8,9 +8,11 @@ SHARED by both prediction pipelines in this project (scripts/volatility/
 and scripts/direction/) -- the raw data pull is identical either way, so
 it lives once at the top level rather than being duplicated per pipeline.
 
-Basket: SPY, QQQ, IWM, DIA, XLF -- broad index ETFs (S&P 500, Nasdaq
-100, Russell 2000, Dow 30) plus one sector fund (Financials), rather
-than individual stocks.
+Basket: SPY, QQQ, IWM, DIA, XLF, GLD, TLT -- broad index ETFs (S&P 500,
+Nasdaq 100, Russell 2000, Dow 30), one sector fund (Financials), and
+two non-equity asset classes (Gold, long-term Treasuries) added to see
+how the models generalize outside pure equities, rather than
+individual stocks.
 
 Why VIX is pulled once, separately, rather than per-ticker:
 VIX is the market's own forward-looking volatility estimate (derived
@@ -35,7 +37,7 @@ import yfinance as yf
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF"]
+BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
 VIX_SYMBOL = "^VIX"
 
 DEFAULT_START = "2005-01-01"  # far enough back to span multiple vol regimes

@@ -8,13 +8,22 @@ the whole basket) and evaluates both on the validation split:
 2. XGBoost -- a stronger, non-linear model, explained via SHAP in
    06_evaluate.py.
 
-ONE POOLED MODEL, NOT FIVE SEPARATE ONES
----------------------------------------------
+ONE POOLED MODEL, BUT PER-TICKER DECISION THRESHOLDS
+---------------------------------------------------------
 Rather than training a separate model per ticker, this trains a single
-model on all five tickers stacked together, with 'ticker' included as
+model on the whole basket stacked together, with 'ticker' included as
 a one-hot encoded feature. This lets the model share what it learns
 about general volatility clustering while still picking up
 ticker-specific effects through the ticker dummy variables.
+
+The DECISION THRESHOLD, however, is tuned separately per ticker (see
+select_f1_thresholds_per_ticker in common.py), not shared across the
+basket. One pooled threshold was tried first and broke silently: once
+GLD and TLT joined the original equity-index ETFs, a single threshold
+that satisfied the pooled precision guardrail ended up far too strict
+for XLF and TLT specifically -- their recall collapsed to ~10% and
+~2% even though the pooled accuracy looked fine. The model stayed
+pooled; only the threshold became per-ticker.
 
 HYPERPARAMETERS: TUNED IF AVAILABLE, SENSIBLE DEFAULTS OTHERWISE
 ------------------------------------------------------------------------
@@ -37,11 +46,12 @@ class weighting (LogisticRegression(class_weight="balanced") / XGBoost's
 scale_pos_weight) to deliberately favor recall on the minority high-vol
 class, which pushes predicted probabilities up and can make accuracy
 come in BELOW the naive "always predict the majority class" baseline --
-even when ROC-AUC clearly shows real signal. select_f1_threshold()
-(common.py) picks a better cut on VAL and 06_evaluate.py applies it to
-TEST, so the accuracy numbers reported are an honest, apples-to-apples
-comparison against that baseline rather than an artifact of the 0.5
-default. See 06_evaluate.py for the per-ticker breakdown.
+even when ROC-AUC clearly shows real signal. select_f1_thresholds_per_ticker()
+(common.py) picks a better, per-ticker cut on VAL and 06_evaluate.py
+applies those as-is to TEST, so the accuracy numbers reported are an
+honest, apples-to-apples comparison against that baseline rather than
+an artifact of the 0.5 default. See 06_evaluate.py for the per-ticker
+breakdown.
 
 Usage:
     python scripts/volatility/05_train_model.py
@@ -63,7 +73,8 @@ from xgboost import XGBClassifier
 
 from common import (
     BASKET, LABEL_COL, MODELS_DIR, NUMERIC_FEATURE_COLS,
-    build_feature_matrix, load_split, select_f1_threshold,
+    apply_per_ticker_thresholds, build_feature_matrix, load_split,
+    select_f1_thresholds_per_ticker,
 )
 
 DEFAULT_XGB_PARAMS = {
@@ -143,14 +154,17 @@ def main():
     # class_weight="balanced" shifts LR's probabilities toward the
     # minority (high-vol) class, which is good for recall but can tank
     # accuracy at the default 0.5 cut -- see select_f1_threshold's
-    # docstring. Pick the threshold that actually maximizes accuracy on
-    # VAL (never touches test), and use it everywhere downstream,
-    # including 06_evaluate.py.
-    lr_threshold = select_f1_threshold(y_val, lr_proba)
-    lr_pred = (lr_proba >= lr_threshold).astype(int)
+    # docstring. A SEPARATE threshold is picked PER TICKER on VAL
+    # (never touches test) -- see select_f1_thresholds_per_ticker's
+    # docstring for why one pooled threshold isn't good enough once
+    # the basket includes dissimilar asset classes -- and used
+    # everywhere downstream, including 06_evaluate.py.
+    lr_thresholds = select_f1_thresholds_per_ticker(y_val, lr_proba, val["ticker"], BASKET)
+    lr_pred = apply_per_ticker_thresholds(lr_proba, val["ticker"], lr_thresholds)
     lr_metrics = evaluate("Logistic Regression (val, pooled)", y_val, lr_pred, lr_proba)
-    print(f"  (decision threshold selected on val: {lr_threshold:.2f}, "
-          f"vs. default 0.5)")
+    print("  (decision thresholds selected on val, per ticker):")
+    for ticker, t in lr_thresholds.items():
+        print(f"    {ticker:>4}: {t:.2f}")
 
     print("\n  Coefficients (standardized -- larger magnitude = stronger effect):")
     for feat, coef in sorted(
@@ -172,11 +186,12 @@ def main():
     xgb.fit(X_train, y_train)
     xgb_proba = xgb.predict_proba(X_val)[:, 1]
 
-    xgb_threshold = select_f1_threshold(y_val, xgb_proba)
-    xgb_pred = (xgb_proba >= xgb_threshold).astype(int)
+    xgb_thresholds = select_f1_thresholds_per_ticker(y_val, xgb_proba, val["ticker"], BASKET)
+    xgb_pred = apply_per_ticker_thresholds(xgb_proba, val["ticker"], xgb_thresholds)
     xgb_metrics = evaluate("XGBoost (val, pooled)", y_val, xgb_pred, xgb_proba)
-    print(f"  (decision threshold selected on val: {xgb_threshold:.2f}, "
-          f"vs. default 0.5)")
+    print("  (decision thresholds selected on val, per ticker):")
+    for ticker, t in xgb_thresholds.items():
+        print(f"    {ticker:>4}: {t:.2f}")
 
     print("\n  Feature importances:")
     for feat, imp in sorted(
@@ -203,12 +218,16 @@ def main():
             "xgboost": xgb_metrics,
         },
         "val_naive_baseline_accuracy": naive_baseline_accuracy,
-        # Selected on VAL only (see select_f1_threshold in common.py);
-        # 06_evaluate.py reads these and applies them as-is to TEST, so
-        # test stays untouched by the selection itself.
+        # Selected on VAL only, PER TICKER (see
+        # select_f1_thresholds_per_ticker in common.py); 06_evaluate.py
+        # reads these and applies them as-is to TEST, so test stays
+        # untouched by the selection itself. Nested dict: {model: {ticker:
+        # threshold}}, not a single float per model -- a pooled threshold
+        # was tried and found to silently fail specific tickers (see that
+        # function's docstring).
         "decision_threshold": {
-            "logistic_regression": lr_threshold,
-            "xgboost": xgb_threshold,
+            "logistic_regression": lr_thresholds,
+            "xgboost": xgb_thresholds,
         },
     }
     with open(MODELS_DIR / "metadata.json", "w") as f:
