@@ -54,19 +54,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common import BASKET, engineer_single_ticker  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
-
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
-
-REALIZED_VOL_WINDOWS = [5, 10, 20]   # trading days
-ATR_WINDOW = 14                       # standard ATR lookback
-VOLUME_MA_WINDOW = 20
-TRADING_DAYS_PER_YEAR = 252
 
 
 def load_ticker_raw(ticker: str) -> pd.DataFrame:
@@ -89,40 +84,8 @@ def load_vix() -> pd.DataFrame:
     return pd.read_csv(path, index_col="Date", parse_dates=True)
 
 
-def engineer_single_ticker(df: pd.DataFrame, vix: pd.DataFrame, ticker: str) -> pd.DataFrame:
-    """All per-ticker feature computation -- no cross-ticker mixing here."""
-    df = df.copy()
-
-    df["log_return"] = np.log(df["Close"] / df["Close"].shift(1))
-    df["abs_return"] = df["log_return"].abs()
-
-    for window in REALIZED_VOL_WINDOWS:
-        df[f"realized_vol_{window}d"] = (
-            df["log_return"].rolling(window).std() * np.sqrt(TRADING_DAYS_PER_YEAR)
-        )
-
-    prev_close = df["Close"].shift(1)
-    true_range = pd.concat(
-        [
-            df["High"] - df["Low"],
-            (df["High"] - prev_close).abs(),
-            (df["Low"] - prev_close).abs(),
-        ],
-        axis=1,
-    ).max(axis=1)
-    df["atr"] = true_range.rolling(ATR_WINDOW).mean()
-    df["atr_pct"] = df["atr"] / df["Close"]
-
-    volume_ma = df["Volume"].rolling(VOLUME_MA_WINDOW).mean()
-    df["volume_ratio"] = df["Volume"] / volume_ma
-
-    # Join VIX (shared across all tickers), scale to fractional (0.20 = 20%)
-    merged = df.join(vix[["Close"]].rename(columns={"Close": "vix_level"}), how="inner")
-    merged["vix_level"] = merged["vix_level"] / 100
-    merged["vix_spy_spread"] = merged["vix_level"] - merged["realized_vol_20d"]
-
-    merged["ticker"] = ticker
-    return merged
+# engineer_single_ticker() now lives in common.py, shared with
+# refresh_predictions.py (the daily job) -- see common.py's docstring.
 
 
 def main():

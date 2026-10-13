@@ -1,8 +1,9 @@
 # Market Analytics (Volatility Regime + Direction Prediction)
 
-Two ML prediction modes for a basket of index/sector ETFs (SPY, QQQ, IWM,
-DIA, XLF), sharing one data pipeline foundation, one Flask backend, and
-one React dashboard with a top-level mode toggle:
+Two ML prediction modes for a basket of index/sector ETFs plus two
+non-equity assets (SPY, QQQ, IWM, DIA, XLF, GLD, TLT), sharing one data
+pipeline foundation, one Flask backend, and one React dashboard with a
+top-level mode toggle:
 
 - **Volatility regime** (the stronger result -- see Findings below):
   will 5-day forward realized volatility be elevated or normal,
@@ -20,29 +21,59 @@ leakage.
 
 ## Findings
 
-**Volatility regime**: ROC-AUC 0.59-0.66 across all five tickers (see
-`models/volatility/metadata.json` for exact numbers) -- consistently,
-clearly above random, and the project's strongest signal. But raw
-accuracy (45-56% depending on ticker) actually trails the naive
-"always predict normal" baseline (~58-65%), and that's by design, not
-a bug: both models use class weighting
-(`LogisticRegression(class_weight="balanced")` / XGBoost's
-`scale_pos_weight`) to deliberately prioritize *recall* on the
-high-volatility class -- for a risk-flagging tool, missing a real
-high-vol day (a false negative) is worse than an unnecessary alert
-(a false positive), so trading some accuracy for much better recall
-(65-78% across tickers) is the right tradeoff, not a shortcoming.
+**Volatility regime**: ROC-AUC 0.56-0.65 across the basket (SPY, QQQ,
+IWM, DIA, XLF, GLD, TLT -- see `models/volatility/metadata.json` for
+exact numbers) -- consistently above random, and the project's
+strongest signal. One pooled XGBoost model (`ticker` is a one-hot
+feature) is trained across the whole basket, but each ticker gets its
+own tuned decision threshold rather than sharing one -- that split
+exists because of a real bug this project found and fixed, described
+below.
 
-I tried to have it both ways -- `scripts/volatility/common.py`'s
-`select_f1_threshold()` picks a decision threshold on the validation
-set to get a better balance than the arbitrary 0.5 default. An earlier
-version optimized the threshold for raw accuracy directly, which
-"worked" (beat the baseline) by pushing the threshold so high recall
-collapsed to ~6% overall and 0% on one ticker (XLF) -- accuracy went
-up by making the model nearly useless at its actual job. F1 avoids
-that collapse, but confirms there's no threshold that gives good
-accuracy *and* good recall here: that's the real finding, and ROC-AUC
-(threshold-independent) is the fairer metric for judging this model.
+*Threshold selection, and a bug that a pooled threshold was hiding.*
+Both models use class weighting (`LogisticRegression(class_weight=
+"balanced")` / XGBoost's `scale_pos_weight`) to deliberately prioritize
+*recall* on the high-volatility class, which pushes predicted
+probabilities up and can make raw accuracy at the default 0.5 cut come
+in below the naive "always predict normal" baseline even when ROC-AUC
+shows real signal. `scripts/volatility/common.py`'s
+`select_f1_threshold()` picks a better cut on the validation set
+instead of using 0.5. An early version optimized the threshold for raw
+accuracy directly, which "worked" (beat the baseline) by pushing the
+threshold so high recall collapsed to ~6% overall and 0% on one ticker
+(XLF) -- accuracy went up by making the model nearly useless at its
+actual job. Switching to F1-maximization avoided that collapse for the
+original 5-ticker basket.
+
+It broke again, differently, once GLD and TLT were added. A *single
+threshold pooled across all seven tickers* -- even F1-selected --
+turned out to satisfy the pooled metrics while silently failing
+individual tickers: at the threshold that looked best overall, XLF's
+test recall fell to 9.9% and TLT's to 1.8%, i.e. the model almost
+never flagged either as high-vol, while the pooled numbers looked
+fine. Averaging across tickers hid a per-ticker failure. The fix was
+two-part: (1) `select_f1_threshold()` now also requires precision to
+beat the class's base rate by a 15% margin, closing off thresholds
+that just predict "high" almost everywhere and coast on recall; (2)
+the threshold is now selected **per ticker**
+(`select_f1_thresholds_per_ticker()`), not pooled, since one cutoff
+can't serve equities, a sector fund, gold, and long Treasuries
+equally well. After the fix, XLF's recall recovered to 52.2% --
+back in line with the rest of the basket.
+
+TLT's recall only recovered to 16.6%, and at that point I stopped
+treating it as a threshold problem -- it's a signal problem. TLT has
+the lowest ROC-AUC in the basket (0.570, with GLD close behind at
+0.565), and GLD's test accuracy (52.3%) is the only one that falls
+below its naive baseline. The features here (realized volatility, ATR,
+VIX spread, volume ratio) were built around equity-index dynamics;
+it's a reasonable, honest conclusion that they capture what drives
+bond and gold volatility less well than they capture SPY/QQQ/IWM/DIA/
+XLF. That's a real limitation of the current feature set for
+non-equity assets, not something further threshold tuning fixes --
+and it's a more specific, defensible finding than either hiding it in
+a pooled average or just not trying the broader basket in the first
+place.
 
 **Direction**: this is where the project's methodology mattered most.
 A single train/test split gave inconsistent, sometimes alarming
@@ -321,6 +352,35 @@ cd backend
 docker build -t market-analytics-backend .
 docker run -p 5001:5001 -e FRONTEND_ORIGIN=http://localhost:5173 market-analytics-backend
 ```
+
+## Keeping the volatility model up to date
+
+Two separate GitHub Actions workflows, on two separate cadences, because
+"keep the live prediction current" and "retrain the model" are different
+problems with different risk profiles:
+
+- **`.github/workflows/daily-refresh.yml`** (weekdays, after market
+  close): runs `scripts/volatility/refresh_predictions.py`, which pulls
+  the day's fresh prices, computes today's features, and runs them
+  through the model that's **already trained** -- it never retrains
+  anything. Fully automatic, no review needed, because nothing about
+  the model's own logic can change here.
+- **`.github/workflows/weekly-retrain.yml`** (weekly): re-runs the full
+  pipeline (fresh data -> features -> labels -> split -> train ->
+  evaluate), then `scripts/volatility/promote_if_safe.py` checks the
+  new run's metrics against what's currently deployed -- pooled
+  ROC-AUC can't drop too far, and critically, **no ticker's recall is
+  allowed to collapse** (the exact failure this project already hit
+  once, when a pooled decision threshold silently zeroed out XLF's and
+  TLT's recall -- see Findings above). A run that fails this check
+  is rejected automatically: nothing gets committed, the currently-
+  deployed model keeps serving, and the workflow fails loudly in the
+  Actions tab instead of a worse model going live unreviewed.
+
+Both workflows commit their output straight to `main`, which Render's
+existing auto-deploy picks up the same way a manual push does. Trigger
+either one manually from the Actions tab (`workflow_dispatch`) to test
+it before trusting the schedule.
 
 ## Roadmap
 

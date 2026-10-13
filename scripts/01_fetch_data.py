@@ -30,45 +30,17 @@ import argparse
 import sys
 from pathlib import Path
 
-import pandas as pd
-import yfinance as yf
+# Make scripts/ importable regardless of the CWD this is invoked from
+# (python scripts/01_fetch_data.py already adds scripts/ to sys.path, but
+# being explicit here means this also works if something imports this
+# module rather than running it directly).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from data_utils import BASKET, DEFAULT_START, VIX_SYMBOL, fetch_ticker
 
 # Project root is one level up from this script's directory.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
-
-BASKET = ["SPY", "QQQ", "IWM", "DIA", "XLF", "GLD", "TLT"]
-VIX_SYMBOL = "^VIX"
-
-DEFAULT_START = "2005-01-01"  # far enough back to span multiple vol regimes
-                                # (dot-com aftermath, '08 GFC, '18 vol spike,
-                                # '20 COVID crash, '22 rate-hike selloff)
-
-
-def fetch_ticker(symbol: str, start: str, end: str | None) -> pd.DataFrame:
-    """Download daily OHLCV data for a single ticker via yfinance."""
-    print(f"Fetching {symbol} from {start} to {end or 'today'}...")
-    df = yf.download(
-        symbol,
-        start=start,
-        end=end,
-        auto_adjust=True,   # adjusts OHLC for splits/dividends
-        progress=False,
-    )
-
-    if df.empty:
-        raise ValueError(
-            f"No data returned for {symbol}. Check the ticker symbol, "
-            f"date range, or your network connection."
-        )
-
-    # yfinance sometimes returns MultiIndex columns even for a single
-    # ticker -- flatten them so downstream scripts get plain column names.
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    df.index.name = "Date"
-    return df
 
 
 def main():

@@ -1,0 +1,49 @@
+name: Daily volatility prediction refresh
+
+# Runs the ALREADY-TRAINED model against today's fresh market data --
+# does not retrain anything. See weekly-retrain.yml for the separate,
+# human-reviewed retrain cadence, and
+# scripts/volatility/refresh_predictions.py's docstring for why these
+# are deliberately two different jobs.
+
+on:
+  schedule:
+    # 22:00 UTC = after the US market closes (4:00pm ET / 20:00-21:00
+    # UTC depending on DST), with buffer for the day's data to be
+    # available from Yahoo Finance.
+    - cron: "0 22 * * 1-5"  # weekdays only -- no point running on
+                              # weekends when markets are closed
+  workflow_dispatch: {}  # lets you trigger a run manually from the
+                           # Actions tab, e.g. to test this before
+                           # trusting the schedule
+
+permissions:
+  contents: write  # needed to commit the refreshed prediction files
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Refresh predictions
+        run: python scripts/volatility/refresh_predictions.py
+
+      - name: Commit and push if predictions changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/data/volatility/latest_predictions.json backend/data/volatility/histories.json
+          if git diff --cached --quiet; then
+            echo "No changes -- nothing to commit (markets may have been closed)."
+          else
+            git commit -m "Daily volatility prediction refresh ($(date -u +%Y-%m-%d))"
+            git push
+          fi

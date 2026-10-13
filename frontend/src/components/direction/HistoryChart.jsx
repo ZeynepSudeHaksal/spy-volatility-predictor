@@ -1,7 +1,8 @@
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
-  BarChart, Bar, Cell,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
+  BarChart, Bar, Cell, CartesianGrid, Brush,
 } from 'recharts'
+import DateRangeControl, { useDateRange } from '../shared/DateRangeControl'
 
 const DOWN = '#c24a1f'
 const UP = '#2e7d4f'
@@ -30,7 +31,7 @@ function PriceTooltip({ active, payload, label }) {
           month: 'short', day: 'numeric', year: 'numeric',
         })}
       </div>
-      <div>${row.price.toFixed(2)}</div>
+      <div className="chart-tooltip-value">${row.price.toFixed(2)}</div>
       <div className={row.direction === 'up' ? 'up' : 'down'}>
         {row.direction === 'up' ? 'Predicted up' : 'Predicted down'}
       </div>
@@ -41,19 +42,36 @@ function PriceTooltip({ active, payload, label }) {
 export default function HistoryChart({ history }) {
   if (!history || !history.dates || history.dates.length === 0) return null
 
-  const rows = buildRows(history)
+  const allRows = buildRows(history)
+  const range = useDateRange(allRows)
+  const rows = range.filtered
+  const lastRow = rows[rows.length - 1]
 
   return (
     <section className="section">
       <h2 className="section-title">Recent price and prediction history</h2>
       <p className="section-lede">
         Closing price over the model's test period, with each day's predicted
-        5-day-forward direction shown in the strip below.
+        5-day-forward direction shown in the strip below. Drag the handles
+        beneath the chart to zoom into a specific stretch of dates.
       </p>
 
+      <DateRangeControl range={range} />
+
       <div className="chart-block">
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <ResponsiveContainer width="100%" height={240}>
+          <AreaChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+            <defs>
+              <linearGradient id="dirPriceFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#16181c" stopOpacity={0.1} />
+                <stop offset="100%" stopColor="#16181c" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid
+              vertical={false}
+              stroke="var(--color-line)"
+              strokeWidth={1}
+            />
             <XAxis
               dataKey="date"
               tickFormatter={tickFormatter}
@@ -69,9 +87,31 @@ export default function HistoryChart({ history }) {
               tickLine={false}
               width={44}
             />
-            <Tooltip content={<PriceTooltip />} />
-            <Line type="monotone" dataKey="price" stroke="#16181c" strokeWidth={1.5} dot={false} />
-          </LineChart>
+            <Tooltip
+              content={<PriceTooltip />}
+              cursor={{ stroke: 'var(--color-ink-faint)', strokeWidth: 1 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="price"
+              stroke="#16181c"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, stroke: 'var(--color-bg)', strokeWidth: 2 }}
+              fill="url(#dirPriceFill)"
+              isAnimationActive={true}
+            />
+            {rows.length > 40 && (
+              <Brush
+                dataKey="date"
+                height={24}
+                travellerWidth={8}
+                tickFormatter={tickFormatter}
+                stroke="var(--color-ink-faint)"
+                fill="var(--color-bg)"
+              />
+            )}
+          </AreaChart>
         </ResponsiveContainer>
 
         <ResponsiveContainer width="100%" height={20}>
@@ -87,6 +127,14 @@ export default function HistoryChart({ history }) {
         <div className="ribbon-legend">
           <span><span className="dot up" /> Predicted up</span>
           <span><span className="dot down" /> Predicted down</span>
+          {lastRow && (
+            <span className="ribbon-legend-latest">
+              Latest: ${lastRow.price.toFixed(2)} on{' '}
+              {new Date(lastRow.date + 'T00:00:00').toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+              })}
+            </span>
+          )}
         </div>
       </div>
     </section>

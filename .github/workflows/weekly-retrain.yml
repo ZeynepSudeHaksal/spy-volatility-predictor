@@ -1,0 +1,77 @@
+name: Weekly volatility model retrain
+
+# Re-runs the FULL training pipeline (fresh data -> features -> labels
+# -> split -> train -> evaluate) on a schedule, but only deploys the
+# result if scripts/volatility/promote_if_safe.py approves it -- see
+# that script's docstring for why an unattended retrain needs an
+# automated safety check standing in for the human review this project
+# otherwise relies on. A rejected run fails this job loudly (visible in
+# the Actions tab, and by default GitHub emails you on workflow
+# failure) and commits nothing, so the previously-deployed model keeps
+# serving.
+
+on:
+  schedule:
+    - cron: "0 23 * * 0"  # Sunday 23:00 UTC -- after the week's last
+                            # trading session, before Monday
+  workflow_dispatch: {}  # lets you trigger a run manually to test this
+                           # before trusting the schedule
+
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # just need HEAD, to read the current (pre-retrain)
+                            # metadata.json for comparison below
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Save the currently-deployed metadata for comparison
+        run: |
+          if git show HEAD:models/volatility/metadata.json > /tmp/old_metadata.json 2>/dev/null; then
+            echo "Captured the currently-deployed metadata.json for comparison."
+          else
+            rm -f /tmp/old_metadata.json
+            echo "No previous metadata.json found -- this must be the first run."
+          fi
+
+      - name: Run the full volatility training pipeline
+        run: |
+          python scripts/01_fetch_data.py
+          python scripts/volatility/02_engineer_features.py
+          python scripts/volatility/03_label_data.py
+          python scripts/volatility/04_train_test_split.py
+          python scripts/volatility/05_train_model.py
+          python scripts/volatility/06_evaluate.py
+
+      - name: Check whether this run is safe to deploy
+        id: gate
+        run: |
+          python scripts/volatility/promote_if_safe.py \
+            --new models/volatility/metadata.json \
+            --old /tmp/old_metadata.json
+
+      # Only reached if the gate above exited 0 -- a non-zero exit fails
+      # the job here and skips every step below, so nothing gets
+      # committed on a rejected run.
+      - name: Commit and push the retrained model
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add models/volatility/ backend/data/volatility/
+          if git diff --cached --quiet; then
+            echo "No changes -- nothing to commit."
+          else
+            git commit -m "Weekly volatility model retrain ($(date -u +%Y-%m-%d))"
+            git push
+          fi

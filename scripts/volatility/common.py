@@ -38,6 +38,85 @@ NUMERIC_FEATURE_COLS = [
 ]
 LABEL_COL = "label"
 
+REALIZED_VOL_WINDOWS = [5, 10, 20]   # trading days
+ATR_WINDOW = 14                       # standard ATR lookback
+VOLUME_MA_WINDOW = 20
+TRADING_DAYS_PER_YEAR = 252
+
+
+def engineer_single_ticker(df: pd.DataFrame, vix: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """
+    All per-ticker feature computation -- no cross-ticker mixing here.
+
+    Shared between 02_engineer_features.py (the full historical rebuild)
+    and refresh_predictions.py (the daily job that only needs the most
+    recent rows) so the two can never quietly drift apart on what a
+    feature actually means -- see this file's module docstring for why
+    that matters.
+    """
+    df = df.copy()
+
+    df["log_return"] = np.log(df["Close"] / df["Close"].shift(1))
+    df["abs_return"] = df["log_return"].abs()
+
+    for window in REALIZED_VOL_WINDOWS:
+        df[f"realized_vol_{window}d"] = (
+            df["log_return"].rolling(window).std() * np.sqrt(TRADING_DAYS_PER_YEAR)
+        )
+
+    prev_close = df["Close"].shift(1)
+    true_range = pd.concat(
+        [
+            df["High"] - df["Low"],
+            (df["High"] - prev_close).abs(),
+            (df["Low"] - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    df["atr"] = true_range.rolling(ATR_WINDOW).mean()
+    df["atr_pct"] = df["atr"] / df["Close"]
+
+    volume_ma = df["Volume"].rolling(VOLUME_MA_WINDOW).mean()
+    df["volume_ratio"] = df["Volume"] / volume_ma
+
+    # Join VIX (shared across all tickers), scale to fractional (0.20 = 20%)
+    merged = df.join(vix[["Close"]].rename(columns={"Close": "vix_level"}), how="inner")
+    merged["vix_level"] = merged["vix_level"] / 100
+    merged["vix_spy_spread"] = merged["vix_level"] - merged["realized_vol_20d"]
+
+    merged["ticker"] = ticker
+    return merged
+
+
+def compute_shap_explanations(xgb_model, X: pd.DataFrame, feature_cols: list):
+    """Shared with 06_evaluate.py -- see that file for how the output is used."""
+    import shap  # imported here, not at module level, so scripts that never
+                  # touch SHAP (e.g. 05_train_model.py) don't need it installed
+    explainer = shap.TreeExplainer(xgb_model)
+    shap_values = explainer.shap_values(X)
+    global_importance = pd.Series(
+        np.abs(shap_values).mean(axis=0), index=feature_cols
+    ).sort_values(ascending=False)
+    return explainer, shap_values, global_importance
+
+
+def top_features_for_row(shap_row, feature_cols: list, n: int = 5) -> list:
+    """
+    Picks the n most-influential features for one row's prediction,
+    excluding ticker dummy columns -- WHICH ticker this is isn't a
+    meaningful "reason" to show a PM, it's just an identifier, so it's
+    excluded from the plain-language explanation surfaced to the
+    frontend.
+    """
+    ranked = sorted(
+        zip(feature_cols, shap_row), key=lambda x: -abs(x[1])
+    )[:n]
+    return [
+        {"feature": feat, "shap_value": round(float(val), 4)}
+        for feat, val in ranked
+        if not feat.startswith("ticker_")
+    ]
+
 
 def load_split(name: str) -> pd.DataFrame:
     path = PROCESSED_DATA_DIR / f"{name}.csv"

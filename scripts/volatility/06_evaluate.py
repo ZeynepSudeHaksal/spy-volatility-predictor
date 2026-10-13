@@ -39,13 +39,14 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-import shap
 from sklearn.metrics import (
     accuracy_score, classification_report, confusion_matrix, f1_score,
     precision_score, recall_score, roc_auc_score,
 )
 
-from common import apply_per_ticker_thresholds
+from common import (
+    apply_per_ticker_thresholds, compute_shap_explanations, top_features_for_row,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed" / "volatility"
@@ -100,27 +101,9 @@ def print_metrics(name: str, metrics: dict):
         print(f"  {k:>10}: {v:.4f}")
 
 
-def compute_shap_explanations(xgb_model, X_test: pd.DataFrame, feature_cols: list):
-    explainer = shap.TreeExplainer(xgb_model)
-    shap_values = explainer.shap_values(X_test)
-    global_importance = pd.Series(
-        np.abs(shap_values).mean(axis=0), index=feature_cols
-    ).sort_values(ascending=False)
-    return explainer, shap_values, global_importance
-
-
-def top_features_for_row(shap_row: np.ndarray, feature_cols: list, n: int = 5) -> list:
-    ranked = sorted(
-        zip(feature_cols, shap_row), key=lambda x: -abs(x[1])
-    )[:n]
-    return [
-        {"feature": feat, "shap_value": round(float(val), 4)}
-        for feat, val in ranked
-        if not feat.startswith("ticker_")  # ticker dummies aren't a
-        # meaningful "reason" to show a PM -- they encode WHICH ticker
-        # this is, not a market condition, so they're excluded from
-        # the plain-language explanation surfaced to the frontend.
-    ]
+# compute_shap_explanations() and top_features_for_row() now live in
+# common.py, shared with refresh_predictions.py (the daily job) -- see
+# common.py's docstring.
 
 
 def main():
