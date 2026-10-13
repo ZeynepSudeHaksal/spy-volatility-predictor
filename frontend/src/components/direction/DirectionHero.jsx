@@ -46,8 +46,8 @@ export default function DirectionHero({ prediction, ticker }) {
       {baseline !== null && baseline !== undefined && (
         <p className="hero-baseline">
           For comparison, this ticker has closed up {Math.round(baseline * 100)}% of
-          5-day windows in the test period &mdash; that's the bar a model has to
-          clear to add real value, not 50%.
+          5-day windows across the model's walk-forward out-of-sample history
+          &mdash; that's the bar a model has to clear to add real value, not 50%.
         </p>
       )}
       {summary && <p className="hero-summary">{summary}</p>}

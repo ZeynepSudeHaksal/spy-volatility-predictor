@@ -51,9 +51,11 @@ export default function HistoryChart({ history }) {
     <section className="section">
       <h2 className="section-title">Recent price and prediction history</h2>
       <p className="section-lede">
-        Closing price over the model's test period, with each day's predicted
-        5-day-forward direction shown in the strip below. Drag the handles
-        beneath the chart to zoom into a specific stretch of dates.
+        Closing price with each day's walk-forward, out-of-sample predicted
+        5-day-forward direction shown in the strip below &mdash; every point
+        here is a prediction the model made without having seen that day's
+        outcome. Drag the handles beneath the chart to zoom into a specific
+        stretch of dates.
       </p>
 
       <DateRangeControl range={range} />

@@ -353,35 +353,6 @@ docker build -t market-analytics-backend .
 docker run -p 5001:5001 -e FRONTEND_ORIGIN=http://localhost:5173 market-analytics-backend
 ```
 
-## Keeping the volatility model up to date
-
-Two separate GitHub Actions workflows, on two separate cadences, because
-"keep the live prediction current" and "retrain the model" are different
-problems with different risk profiles:
-
-- **`.github/workflows/daily-refresh.yml`** (weekdays, after market
-  close): runs `scripts/volatility/refresh_predictions.py`, which pulls
-  the day's fresh prices, computes today's features, and runs them
-  through the model that's **already trained** -- it never retrains
-  anything. Fully automatic, no review needed, because nothing about
-  the model's own logic can change here.
-- **`.github/workflows/weekly-retrain.yml`** (weekly): re-runs the full
-  pipeline (fresh data -> features -> labels -> split -> train ->
-  evaluate), then `scripts/volatility/promote_if_safe.py` checks the
-  new run's metrics against what's currently deployed -- pooled
-  ROC-AUC can't drop too far, and critically, **no ticker's recall is
-  allowed to collapse** (the exact failure this project already hit
-  once, when a pooled decision threshold silently zeroed out XLF's and
-  TLT's recall -- see Findings above). A run that fails this check
-  is rejected automatically: nothing gets committed, the currently-
-  deployed model keeps serving, and the workflow fails loudly in the
-  Actions tab instead of a worse model going live unreviewed.
-
-Both workflows commit their output straight to `main`, which Render's
-existing auto-deploy picks up the same way a manual push does. Trigger
-either one manually from the Actions tab (`workflow_dispatch`) to test
-it before trusting the schedule.
-
 ## Roadmap
 
 - [x] Shared data pipeline + two independent prediction pipelines
