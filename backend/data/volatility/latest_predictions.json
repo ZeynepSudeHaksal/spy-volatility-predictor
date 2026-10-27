@@ -1,198 +1,202 @@
 {
   "SPY": {
-    "date": "2026-10-22",
-    "regime": "high",
-    "probability": 0.7173,
+    "date": "2026-10-23",
+    "regime": "low",
+    "probability": 0.3657,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.5376
+        "shap_value": 0.5906
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": 0.1954
-      },
-      {
-        "feature": "volume_ratio",
-        "shap_value": 0.1502
+        "shap_value": 0.2355
       },
       {
         "feature": "atr_pct",
-        "shap_value": -0.1223
+        "shap_value": -0.154
       },
       {
-        "feature": "vix_level",
-        "shap_value": 0.1137
+        "feature": "realized_vol_5d",
+        "shap_value": -0.1328
+      },
+      {
+        "feature": "realized_vol_10d",
+        "shap_value": -0.109
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "QQQ": {
-    "date": "2026-10-22",
+    "date": "2026-10-23",
     "regime": "high",
-    "probability": 0.8152,
+    "probability": 0.7809,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.655
-      },
-      {
-        "feature": "volume_ratio",
-        "shap_value": 0.3947
+        "shap_value": 0.9387
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": 0.1264
+        "shap_value": 0.1314
+      },
+      {
+        "feature": "volume_ratio",
+        "shap_value": -0.0894
       },
       {
         "feature": "vix_level",
-        "shap_value": 0.1111
+        "shap_value": 0.0867
       },
       {
         "feature": "atr_pct",
-        "shap_value": 0.0645
+        "shap_value": 0.0619
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "IWM": {
-    "date": "2026-10-22",
-    "regime": "high",
-    "probability": 0.7745,
+    "date": "2026-10-23",
+    "regime": "low",
+    "probability": 0.3278,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.8816
+        "shap_value": 0.7578
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": 0.1376
+        "shap_value": 0.18
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": 0.1041
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.1026
+        "shap_value": -0.154
       },
       {
         "feature": "atr_pct",
-        "shap_value": -0.0798
+        "shap_value": -0.1315
+      },
+      {
+        "feature": "volume_ratio",
+        "shap_value": -0.1104
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "DIA": {
-    "date": "2026-10-22",
-    "regime": "low",
-    "probability": 0.4199,
+    "date": "2026-10-23",
+    "regime": "high",
+    "probability": 0.678,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.6349
+        "shap_value": 0.6485
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": 0.2153
-      },
-      {
-        "feature": "realized_vol_10d",
-        "shap_value": -0.1934
-      },
-      {
-        "feature": "realized_vol_5d",
-        "shap_value": -0.1783
+        "shap_value": 0.1922
       },
       {
         "feature": "atr_pct",
-        "shap_value": -0.1523
+        "shap_value": -0.13
+      },
+      {
+        "feature": "log_return",
+        "shap_value": 0.1197
+      },
+      {
+        "feature": "realized_vol_10d",
+        "shap_value": -0.1124
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "XLF": {
-    "date": "2026-10-22",
+    "date": "2026-10-23",
     "regime": "high",
-    "probability": 0.4815,
+    "probability": 0.5635,
     "top_features": [
       {
-        "feature": "volume_ratio",
-        "shap_value": -0.1463
+        "feature": "log_return",
+        "shap_value": 0.1509
       },
       {
-        "feature": "vix_spy_spread",
-        "shap_value": 0.0902
+        "feature": "volume_ratio",
+        "shap_value": -0.1314
       },
       {
         "feature": "vix_level",
-        "shap_value": 0.0899
+        "shap_value": 0.1015
+      },
+      {
+        "feature": "vix_spy_spread",
+        "shap_value": 0.0701
       },
       {
         "feature": "realized_vol_20d",
-        "shap_value": 0.0782
-      },
-      {
-        "feature": "realized_vol_5d",
-        "shap_value": -0.0662
+        "shap_value": 0.0661
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "GLD": {
-    "date": "2026-10-22",
+    "date": "2026-10-23",
     "regime": "high",
-    "probability": 0.7105,
+    "probability": 0.6679,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.5695
-      },
-      {
-        "feature": "volume_ratio",
-        "shap_value": 0.3546
+        "shap_value": 0.7023
       },
       {
         "feature": "vix_level",
-        "shap_value": 0.1546
+        "shap_value": 0.1206
+      },
+      {
+        "feature": "vix_spy_spread",
+        "shap_value": -0.0796
       },
       {
         "feature": "log_return",
-        "shap_value": 0.0842
+        "shap_value": 0.0729
+      },
+      {
+        "feature": "realized_vol_20d",
+        "shap_value": -0.0628
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "TLT": {
-    "date": "2026-10-22",
-    "regime": "high",
-    "probability": 0.5828,
+    "date": "2026-10-23",
+    "regime": "low",
+    "probability": 0.4843,
     "top_features": [
       {
         "feature": "volume_ratio",
-        "shap_value": 0.2023
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.1293
+        "shap_value": -0.1335
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": 0.1032
+        "shap_value": 0.1008
+      },
+      {
+        "feature": "vix_level",
+        "shap_value": 0.089
       },
       {
         "feature": "log_return",
-        "shap_value": -0.0974
+        "shap_value": 0.0729
       },
       {
         "feature": "realized_vol_20d",
-        "shap_value": 0.0744
+        "shap_value": 0.0703
       }
     ],
     "model": "xgboost",
