@@ -14,7 +14,7 @@
       },
       {
         "feature": "volume_ratio",
-        "shap_value": 0.1561
+        "shap_value": 0.156
       },
       {
         "feature": "atr_pct",
@@ -147,11 +147,11 @@
   "GLD": {
     "date": "2026-11-02",
     "regime": "high",
-    "probability": 0.7093,
+    "probability": 0.7113,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.7775
+        "shap_value": 0.7826
       },
       {
         "feature": "realized_vol_5d",
@@ -159,15 +159,15 @@
       },
       {
         "feature": "realized_vol_10d",
-        "shap_value": 0.0815
+        "shap_value": 0.0808
       },
       {
         "feature": "atr_pct",
-        "shap_value": 0.0519
+        "shap_value": 0.0518
       },
       {
         "feature": "realized_vol_20d",
-        "shap_value": -0.0467
+        "shap_value": -0.0462
       }
     ],
     "model": "xgboost",
