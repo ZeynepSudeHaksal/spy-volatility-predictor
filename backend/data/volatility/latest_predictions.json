@@ -1,202 +1,202 @@
 {
   "SPY": {
-    "date": "2026-11-03",
-    "regime": "low",
-    "probability": 0.3627,
+    "date": "2026-11-04",
+    "regime": "high",
+    "probability": 0.736,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.6622
-      },
-      {
-        "feature": "vix_spy_spread",
-        "shap_value": 0.1941
-      },
-      {
-        "feature": "atr_pct",
-        "shap_value": -0.1371
+        "shap_value": 0.6238
       },
       {
         "feature": "volume_ratio",
-        "shap_value": -0.1132
+        "shap_value": 0.2038
       },
       {
-        "feature": "realized_vol_20d",
-        "shap_value": 0.0599
+        "feature": "vix_spy_spread",
+        "shap_value": 0.1211
+      },
+      {
+        "feature": "atr_pct",
+        "shap_value": -0.1208
+      },
+      {
+        "feature": "realized_vol_5d",
+        "shap_value": 0.1185
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "QQQ": {
-    "date": "2026-11-03",
+    "date": "2026-11-04",
     "regime": "high",
-    "probability": 0.7185,
+    "probability": 0.7332,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.7898
-      },
-      {
-        "feature": "realized_vol_5d",
-        "shap_value": 0.1177
-      },
-      {
-        "feature": "realized_vol_10d",
-        "shap_value": 0.0778
-      },
-      {
-        "feature": "atr_pct",
-        "shap_value": 0.0744
+        "shap_value": 0.6772
       },
       {
         "feature": "volume_ratio",
-        "shap_value": -0.0689
+        "shap_value": 0.1711
+      },
+      {
+        "feature": "realized_vol_5d",
+        "shap_value": 0.1264
+      },
+      {
+        "feature": "vix_spy_spread",
+        "shap_value": -0.0837
+      },
+      {
+        "feature": "realized_vol_20d",
+        "shap_value": -0.0758
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "IWM": {
-    "date": "2026-11-03",
-    "regime": "low",
-    "probability": 0.3116,
+    "date": "2026-11-04",
+    "regime": "high",
+    "probability": 0.7499,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.8103
-      },
-      {
-        "feature": "vix_spy_spread",
-        "shap_value": 0.1595
+        "shap_value": 0.7094
       },
       {
         "feature": "volume_ratio",
-        "shap_value": -0.1208
-      },
-      {
-        "feature": "realized_vol_10d",
-        "shap_value": -0.0658
+        "shap_value": 0.1783
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": -0.055
+        "shap_value": 0.1124
+      },
+      {
+        "feature": "vix_level",
+        "shap_value": 0.0886
+      },
+      {
+        "feature": "realized_vol_10d",
+        "shap_value": -0.0617
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "DIA": {
-    "date": "2026-11-03",
-    "regime": "low",
-    "probability": 0.3767,
+    "date": "2026-11-04",
+    "regime": "high",
+    "probability": 0.7767,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.5941
+        "shap_value": 0.7234
       },
       {
-        "feature": "vix_spy_spread",
-        "shap_value": 0.2349
-      },
-      {
-        "feature": "realized_vol_10d",
-        "shap_value": -0.1823
+        "feature": "volume_ratio",
+        "shap_value": 0.3995
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": -0.1531
+        "shap_value": 0.129
       },
       {
         "feature": "atr_pct",
-        "shap_value": -0.1341
+        "shap_value": -0.122
+      },
+      {
+        "feature": "log_return",
+        "shap_value": -0.1077
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "XLF": {
-    "date": "2026-11-03",
+    "date": "2026-11-04",
     "regime": "high",
-    "probability": 0.549,
+    "probability": 0.5988,
     "top_features": [
       {
         "feature": "volume_ratio",
-        "shap_value": -0.1313
-      },
-      {
-        "feature": "vix_level",
-        "shap_value": 0.0952
-      },
-      {
-        "feature": "log_return",
-        "shap_value": 0.0734
+        "shap_value": 0.3359
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": 0.0671
+        "shap_value": 0.1443
+      },
+      {
+        "feature": "log_return",
+        "shap_value": -0.1199
+      },
+      {
+        "feature": "realized_vol_10d",
+        "shap_value": 0.0944
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": 0.062
+        "shap_value": -0.0574
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "GLD": {
-    "date": "2026-11-03",
+    "date": "2026-11-04",
     "regime": "high",
-    "probability": 0.7002,
+    "probability": 0.7372,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.7141
+        "shap_value": 0.6779
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": 0.1142
-      },
-      {
-        "feature": "volume_ratio",
-        "shap_value": -0.08
+        "shap_value": 0.2929
       },
       {
         "feature": "realized_vol_10d",
-        "shap_value": 0.0751
+        "shap_value": 0.1309
       },
       {
-        "feature": "log_return",
-        "shap_value": 0.0647
+        "feature": "vix_spy_spread",
+        "shap_value": -0.0879
+      },
+      {
+        "feature": "volume_ratio",
+        "shap_value": 0.0872
       }
     ],
     "model": "xgboost",
     "note": null
   },
   "TLT": {
-    "date": "2026-11-03",
+    "date": "2026-11-04",
     "regime": "low",
-    "probability": 0.4879,
+    "probability": 0.5096,
     "top_features": [
       {
-        "feature": "volume_ratio",
-        "shap_value": -0.1317
+        "feature": "realized_vol_5d",
+        "shap_value": -0.0832
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": 0.1044
+        "shap_value": 0.0754
       },
       {
-        "feature": "log_return",
-        "shap_value": 0.0968
+        "feature": "volume_ratio",
+        "shap_value": -0.0697
+      },
+      {
+        "feature": "realized_vol_20d",
+        "shap_value": 0.066
       },
       {
         "feature": "vix_level",
-        "shap_value": 0.0836
-      },
-      {
-        "feature": "realized_vol_5d",
-        "shap_value": -0.076
+        "shap_value": 0.0419
       }
     ],
     "model": "xgboost",
