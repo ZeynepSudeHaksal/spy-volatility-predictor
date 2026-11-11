@@ -60,23 +60,23 @@
   "IWM": {
     "date": "2026-11-09",
     "regime": "high",
-    "probability": 0.7845,
+    "probability": 0.7836,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.8009
+        "shap_value": 0.7996
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": 0.405
+        "shap_value": 0.403
       },
       {
         "feature": "realized_vol_10d",
-        "shap_value": 0.1389
+        "shap_value": 0.1388
       },
       {
         "feature": "vix_spy_spread",
-        "shap_value": -0.0661
+        "shap_value": -0.0666
       },
       {
         "feature": "log_return",
