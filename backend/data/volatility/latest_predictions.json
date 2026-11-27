@@ -2,27 +2,27 @@
   "SPY": {
     "date": "2026-11-25",
     "regime": "high",
-    "probability": 0.8142,
+    "probability": 0.8095,
     "top_features": [
       {
         "feature": "atr",
-        "shap_value": 0.9439
+        "shap_value": 0.9046
       },
       {
         "feature": "realized_vol_5d",
-        "shap_value": 0.4118
+        "shap_value": 0.3941
       },
       {
         "feature": "vix_level",
-        "shap_value": 0.1043
-      },
-      {
-        "feature": "realized_vol_10d",
-        "shap_value": 0.0886
+        "shap_value": 0.1078
       },
       {
         "feature": "realized_vol_20d",
-        "shap_value": -0.0855
+        "shap_value": -0.0846
+      },
+      {
+        "feature": "realized_vol_10d",
+        "shap_value": 0.0791
       }
     ],
     "model": "xgboost",
@@ -43,11 +43,11 @@
       },
       {
         "feature": "realized_vol_10d",
-        "shap_value": 0.1988
+        "shap_value": 0.1991
       },
       {
         "feature": "vix_level",
-        "shap_value": 0.1352
+        "shap_value": 0.1351
       },
       {
         "feature": "atr_pct",
